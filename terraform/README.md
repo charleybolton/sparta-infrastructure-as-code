@@ -186,33 +186,42 @@ Examples:
 
 ## 🧠 How Does Terraform Work?
 
-On our local machine at home:
-- Installed Terraform (terraform --version)
-- Folder
-  - main.tf (store code)
-  - variable.tf (store code)
-  - .terraform.lock.hcl (locks your provider version at that version)
-  - terraform.tfstate (can contain credentials) (where they are stored in your backend)
-  - terraform.tfstate.backup (can contain credentials) (where they are stored in your backend)
-  - .terraform folder (stores provider files)
+On Our Local Machine:
 
-terraform checks what's stored in the state folders, downloads providers etc. basically sets up backend
+![Infrastructure as Code cartoon](../images/how-terraform-works.png)
 
-terraform plan non destructive
+- Installed Terraform (`terraform --version`)
+- Folder contains:
+  - `main.tf` → stores main configuration code  
+  - `variable.tf` → stores variable definitions  
+  - `.terraform.lock.hcl` → locks your provider version  
+  - `terraform.tfstate` → can contain credentials (stores infrastructure state in backend)  
+  - `terraform.tfstate.backup` → backup of the state file (can contain credentials)  
+  - `.terraform/` folder → stores provider files and modules
 
-terraform apply/destroy connect to APIs using the provider file
+Terraform checks what’s stored in the state folders, downloads providers, and sets up the backend.
 
-Configuration Drift:
+- `terraform plan` → non-destructive; shows what changes will be made  
+- `terraform apply` / `terraform destroy` → connects to APIs using the provider file and applies or removes resources
 
-Load balancer on several app VMs
-changes on individual VMs 
-Now theres a problem... why arent things running on 1 machine to the other? something out of date maybe?
+---
 
-Configuration management tools like Ansible can sort this
-If it was like a name change or something (infrastructur eout of alignment) running an orchestration tool like terraform will fix it up
+## Configuration Drift
+- Example: Load balancer on several app VMs  
+- Changes may occur on individual VMs  
+- Problem: Things not running properly between machines (something out of date)  
 
-Adding a .gitignore
+**Solution:**  
+- Configuration management tools like **Ansible** can handle these issues.  
+- If the drift is minor (e.g., a name change or infrastructure out of alignment), re-running Terraform (an orchestration tool) will fix it.
 
-can select when creating a repo on github or if already created and on local
+---
 
-curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitignore -o .gitignore
+### Adding a `.gitignore`
+- You can select this when creating a repo on GitHub  
+- Or, if already created and working locally, run:
+
+```bash
+curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitignore
+ -o .gitignore
+ ```
