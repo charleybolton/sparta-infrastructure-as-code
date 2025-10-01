@@ -1,8 +1,46 @@
 # 🧩 Terraform
 
-- [IaC Setup Notes](#iac-setup-notes)
-  - [Tools Installed](#tools-installed)
-  - [Verification](#verification)
+- [🧩 Terraform](#-terraform)
+  - [🧱 IaC Setup Guide (Terraform + VS Code)](#-iac-setup-guide-terraform--vs-code)
+  - [☁️ Setting AWS Environment Variables](#️-setting-aws-environment-variables)
+  - [🌍 What Is Terraform \& What Is It Used For?](#-what-is-terraform--what-is-it-used-for)
+    - [How Does Terraform Act as an Orchestrator?](#how-does-terraform-act-as-an-orchestrator)
+  - [✨ What Are the Benefits of Terraform?](#-what-are-the-benefits-of-terraform)
+  - [🧭 Alternatives To Terraform](#-alternatives-to-terraform)
+  - [🔐 Best Practice: Supplying AWS Credentials to Terraform](#-best-practice-supplying-aws-credentials-to-terraform)
+  - [⛔ How Should AWS Credentials Never Be Passed to Terraform?](#-how-should-aws-credentials-never-be-passed-to-terraform)
+  - [🌍 Why Use Terraform for Different Environments? (e.g. Production, Testing)](#-why-use-terraform-for-different-environments-eg-production-testing)
+  - [🧠 How Does Terraform Work?](#-how-does-terraform-work)
+  - [⚙️ Configuration Drift](#️-configuration-drift)
+  - [🗂️ Adding a `.gitignore`](#️-adding-a-gitignore)
+  - [⚙️ Terraform Commands Overview](#️-terraform-commands-overview)
+    - [terraform plan](#terraform-plan)
+    - [terraform apply](#terraform-apply)
+    - [terraform destroy](#terraform-destroy)
+    - [Manual vs Terraform Management](#manual-vs-terraform-management)
+  - [🔐 Security Groups in Terraform](#-security-groups-in-terraform)
+    - [Removing All Ingress and Egress Rules](#removing-all-ingress-and-egress-rules)
+    - [Protocols](#protocols)
+    - [Creating Rules Manually (AWS Console)](#creating-rules-manually-aws-console)
+- [Create an ec2 instance](#create-an-ec2-instance)
+- [Cloud provider name (provider block)](#cloud-provider-name-provider-block)
+- [Where to create - which region](#where-to-create---which-region)
+- [On terraform init, terraform creates a hidden terraform folder. At this point it contains the providers.](#on-terraform-init-terraform-creates-a-hidden-terraform-folder-at-this-point-it-contains-the-providers)
+- [Specify resource to create an ec2 instance (resource block)](#specify-resource-to-create-an-ec2-instance-resource-block)
+- [AMI ID](#ami-id)
+- [Type of instance](#type-of-instance)
+- [Public ip of this instance](#public-ip-of-this-instance)
+- [Attach the key to be used with EC2 instance](#attach-the-key-to-be-used-with-ec2-instance)
+- [Specify the security group](#specify-the-security-group)
+- [Name of the instance](#name-of-the-instance)
+- [Security Group](#security-group)
+- [Allow SSH from personal IP only](#allow-ssh-from-personal-ip-only)
+- [Allow port 3000 from anywhere](#allow-port-3000-from-anywhere)
+- [Allow port 80 from anywhere](#allow-port-80-from-anywhere)
+- [Allow all outbound traffic](#allow-all-outbound-traffic)
+  - [🧩 Debug Log – Fixing EC2 / Security Group VPC Mismatch](#-debug-log--fixing-ec2--security-group-vpc-mismatch)
+  - [🧠 Reference – `file()` vs `templatefile()`](#-reference--file-vs-templatefile)
+
 
 ## 🧱 IaC Setup Guide (Terraform + VS Code)
 
@@ -105,6 +143,10 @@ printenv AWS_SECRET_ACCESS_KEY
   * Aims to give a balance between human- and machine-readability
   * HCL can be converted to JSON and vice versa
 
+### How Does Terraform Act as an Orchestrator?
+
+Takes care of order in which to create/modify/destroy
+
 ---
 
 ## ✨ What Are the Benefits of Terraform?
@@ -134,16 +176,6 @@ printenv AWS_SECRET_ACCESS_KEY
 - **Pulumi** – Similar to Terraform but **imperative**, meaning you use real programming languages (like Python, TypeScript, or Go) to write your infrastructure code.  
   
 - **AWS CloudFormation**, **GCP Deployment Manager**, **Azure Resource Manager** – Cloud-specific IaC products. These are managed by the individual cloud vendors and only work within their own ecosystems.
-
----
-
-## 🎼 In IaC, What Is Orchestration?
-
-Process of automating and managing the entire lifecycle of infrastructure resources.
-
-### How Does Terraform Act as an Orchestrator?
-
-Takes care of order in which to create/modify/destroy
 
 ---
 
@@ -204,9 +236,20 @@ Terraform checks what’s stored in the state folders, downloads providers, and 
 - `terraform plan` → non-destructive; shows what changes will be made  
 - `terraform apply` / `terraform destroy` → connects to APIs using the provider file and applies or removes resources
 
+
+
+
+
+
+
+
+
+
+
+
 ---
 
-## Configuration Drift
+## ⚙️ Configuration Drift
 - Example: Load balancer on several app VMs  
 - Changes may occur on individual VMs  
 - Problem: Things not running properly between machines (something out of date)  
@@ -217,7 +260,7 @@ Terraform checks what’s stored in the state folders, downloads providers, and 
 
 ---
 
-### Adding a `.gitignore`
+## 🗂️ Adding a `.gitignore`
 - You can select this when creating a repo on GitHub  
 - Or, if already created and working locally, run:
 
@@ -225,3 +268,263 @@ Terraform checks what’s stored in the state folders, downloads providers, and 
 curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitignore
  -o .gitignore
  ```
+
+ ## ⚙️ Terraform Commands Overview
+
+### terraform plan
+
+- **Purpose:** Previews the changes Terraform *would* make without applying them.  
+- **Output Example:**  
+  Plan: 1 to add, 0 to change, 0 to destroy  
+- **Key Point:**  
+  Non-destructive — it **does not** modify your infrastructure.  
+  Use it to review and confirm changes before applying.
+
+---
+
+### terraform apply
+
+- **Purpose:** Executes the plan — **creates, updates, or deletes** resources based on your configuration.  
+- **Usage:**  
+  terraform apply  
+- **Key Point:**  
+  Destructive — it **does** modify your infrastructure.  
+- **Tip:**  
+  Always review the plan summary carefully before typing “yes” to confirm.
+
+---
+
+### terraform destroy
+
+- **Purpose:** Removes **all** infrastructure defined in your Terraform configuration.  
+- **Usage:**  
+  terraform destroy  
+- **Key Point:**  
+  Destructive — it **does** modify your infrastructure.  
+- **Warning:**  
+  This action is **irreversible** — it permanently deletes all managed resources.
+
+---
+
+### Manual vs Terraform Management
+
+- Avoid switching between manual AWS Console changes and Terraform management.  
+- Doing so can cause **drift** — where real infrastructure no longer matches your Terraform state.  
+- Always update and apply changes through Terraform for consistency and accuracy.
+
+---
+
+## 🔐 Security Groups in Terraform
+
+### Removing All Ingress and Egress Rules
+
+The `ingress` and `egress` arguments are processed in **attributes-as-blocks** mode.  
+Because of this, simply deleting these arguments from your configuration will **not** automatically remove existing rules.
+
+To remove all default managed ingress and egress rules and start with a blank security group:
+
+```bash
+resource "aws_security_group" "example" {
+  name   = "sg"
+  vpc_id = aws_vpc.example.id
+
+  ingress = []
+  egress  = []
+}
+```
+
+This clears all default rules, allowing you to define your own explicitly.
+
+### Protocols
+
+- `protocol = "tcp"` → allows TCP traffic (used for SSH, HTTP, etc.)  
+- `protocol = "-1"` → allows **all** protocols (used for full outbound access)
+
+### Creating Rules Manually (AWS Console)
+
+The **Type** dropdown in the AWS Console is a shortcut — it automatically fills in the protocol and port range for you.
+
+| Type (Console) | Protocol | Port | Equivalent in Terraform |
+|----------------|-----------|------|--------------------------|
+| SSH | TCP | 22 | `protocol = "tcp"`, `from_port = 22`, `to_port = 22` |
+| HTTP | TCP | 80 | `protocol = "tcp"`, `from_port = 80`, `to_port = 80` |
+| Custom TCP | TCP | Custom | `protocol = "tcp"`, `from_port = <port>`, `to_port = <port>` |
+
+Terraform doesn’t use a `type` field — you must define each protocol and port range explicitly.
+
+
+
+# Create an ec2 instance
+
+# Cloud provider name (provider block)
+
+provider "aws" {
+  # Where to create - which region
+  region = var.aws_region
+}
+
+# On terraform init, terraform creates a hidden terraform folder. At this point it contains the providers.
+
+# Specify resource to create an ec2 instance (resource block)
+
+resource "aws_instance" "test_instance" {
+
+  # AMI ID
+  ami = var.app_ami_id
+
+  # Type of instance
+  instance_type = var.app_instance_type
+
+  # Public ip of this instance
+  associate_public_ip_address = var.app_ip
+
+  # Attach the key to be used with EC2 instance
+  key_name = var.key_name
+
+  # Specify the security group 
+  vpc_security_group_ids = [aws_security_group.allow_22_3000_80.id]
+
+  # Name of the instance
+  tags = {
+    Name = var.app_name
+  }
+}
+
+# Security Group
+resource "aws_security_group" "allow_22_3000_80" {
+  name        = "tech511-charley-tf-allow-port-22-3000-80"
+  description = "Allow SSH (22) from personal IP; allow 3000 and 80 from all"
+}
+
+# Allow SSH from personal IP only
+resource "aws_security_group_rule" "allow_ssh_personal_ip" {
+  type              = "ingress"
+  description       = "SSH from my IP only"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = [var.personal_ip]
+  security_group_id = aws_security_group.allow_22_3000_80.id
+}
+
+# Allow port 3000 from anywhere
+resource "aws_security_group_rule" "allow_3000_all" {
+  type              = "ingress"
+  description       = "Allow 3000 from all"
+  from_port         = 3000
+  to_port           = 3000
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.allow_22_3000_80.id
+}
+
+# Allow port 80 from anywhere
+resource "aws_security_group_rule" "allow_80_all" {
+  type              = "ingress"
+  description       = "Allow 80 from all"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.allow_22_3000_80.id
+}
+
+# Allow all outbound traffic
+resource "aws_security_group_rule" "allow_all_outbound" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.allow_22_3000_80.id
+}
+
+https://registry.terraform.io/providers/serverscom/serverscom/latest/docs/guides/user-data - user data
+
+
+
+Introduction
+You can use meta-arguments in any type of resource, including resources created with data blocks. You can also use most meta-arguments in module blocks.
+
+The provider developer determines resource-specific arguments, but all resources support meta-arguments that let you manage resources' infrastructure lifecycle, including destruction behavior, preventing destruction, and establishing dependencies between resources. Terraform provides the following meta-arguments.
+
+depends_on
+The depends_on meta-argument establishes dependencies between resources that do not directly reference one another. Use the depends_on argument to explicitly set the order in which Terraform creates resources.
+
+
+
+## 🧩 Debug Log – Fixing EC2 / Security Group VPC Mismatch
+
+**Error Message**
+Error: creating EC2 Instance: operation error EC2: RunInstances, 
+https response error StatusCode: 400, RequestID: 2f7118c5-28d1-448b-bf7f-1fc5d7e7a17f, 
+api error InvalidParameter: Security group sg-0a04a9472be6f4c71 and subnet subnet-0314db0f0470b807f belong to different networks.
+
+**Diagnosis**
+- Terraform was trying to launch an EC2 instance in my **custom VPC**,  
+  but the **security group** being attached was created in the **default VPC**.  
+- This caused a mismatch error because security groups and subnets must belong to the same VPC.
+
+**Cause**
+- The `vpc_id` argument was **missing** from both security group resources:
+
+  resource "aws_security_group" "allow_22_27017" {
+    name        = "tech511-charley-tf-allow-port-22-27017"
+    description = "Allow SSH (22) from personal IP; allow 27017 from all"
+  }
+
+  Without `vpc_id`, Terraform defaults to the **default AWS VPC**.
+
+**Fix**
+- Added `vpc_id = aws_vpc.main.id` to both security group resources:
+
+  resource "aws_security_group" "allow_22_27017" {
+    name        = "tech511-charley-tf-allow-port-22-27017"
+    description = "Allow SSH (22) from personal IP; allow 27017 from all"
+    vpc_id      = aws_vpc.main.id
+  }
+
+  resource "aws_security_group" "allow_22_3000_80" {
+    name        = "tech511-charley-tf-allow-port-22-3000-80"
+    description = "Allow SSH (22) from personal IP; allow 3000 and 80 from all"
+    vpc_id      = aws_vpc.main.id
+  }
+
+**Reapply**
+- Recreated both SGs in the correct VPC using:
+
+  terraform apply -replace=aws_security_group.allow_22_27017 -replace=aws_security_group.allow_22_3000_80
+
+✅ **Result**
+- Terraform successfully deployed the EC2 instances with matching subnets and security groups.
+- Error resolved.
+
+---
+
+## 🧠 Reference – `file()` vs `templatefile()`
+
+**1️⃣ `file()`**  
+- Reads a file *exactly as it is*.  
+- Use when your file doesn’t contain variables or placeholders.  
+- Example:
+
+  user_data = file("scripts/setup.sh")
+
+  → Terraform just inserts the plain text of `setup.sh`.
+
+**2️⃣ `templatefile()`**  
+- Reads a file **and substitutes variables** inside it.  
+- Use when your file includes placeholders like `${variable}`.  
+- Example:
+
+  user_data = templatefile("scripts/app-image-user-data.sh", {
+    db_ip = aws_instance.db_instance.private_ip
+  })
+
+  → Terraform replaces `${db_ip}` in your script with the actual DB IP address.
+
+✅ **Summary**
+| Function | Variable Substitution | Use Case |
+|-----------|----------------------|-----------|
+| `file()` | ❌ No | Static files |
+| `templatefile()` | ✅ Yes | Dynamic files with variables |

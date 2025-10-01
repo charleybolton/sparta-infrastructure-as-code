@@ -64,7 +64,9 @@ Two types of Iac tools:
 
 E.g. Chef, Puppet, Ansible
 
-2.  **Orchestration tools** - best for managing infrastructure, such as VMs, security groups, route tables.
+1.  **Orchestration tools** - best for managing infrastructure, such as VMs, security groups, route tables. In IaC, orchestration is the process of automating and managing the entire lifecycle of infrastructure resources.
+
+
+Process of automating and managing the entire lifecycle of infrastructure resources.
 
 E.g. CloudFormation (AWS), Terraform, ARM/Bicep templates (Azure), Ansible (can do this, but best for configuration management)
-
