@@ -9,6 +9,9 @@
   - [🧱 Workspaces Overview](#-workspaces-overview)
     - [Why Use Workspaces](#why-use-workspaces)
     - [Basic Commands](#basic-commands)
+  - [🌍 Locals Overview](#-locals-overview)
+    - [Why Use Locals](#why-use-locals)
+    - [Syntax](#syntax-1)
 
 ## 🧮 Conditional Expressions
 
@@ -100,3 +103,39 @@ bucket = "my-bucket-${terraform.workspace}"
 ```
 
 This automatically appends the current workspace name (e.g. `my-bucket-dev`, `my-bucket-prod`).
+
+---
+
+## 🌍 Locals Overview
+
+### Why Use Locals
+
+**Locals** in Terraform define reusable values or computed expressions that can be referenced throughout the configuration.  
+They help keep code cleaner and more readable, reduce repetition (DRY principle), and store derived values or conditional logic in a single place.
+
+### Syntax
+
+```bash
+locals {
+  instance_count = var.environment == "dev" ? 1 : 2
+  instance_name  = "${var.app_name}-${var.environment}"
+}
+```
+
+Locals are referenced with the local. prefix:
+
+```bash
+resource "aws_instance" "app_instance" {
+  count = local.instance_count
+
+  ami           = var.default_ami
+  instance_type = var.instance_type
+
+  tags = {
+    Name = local.instance_name
+  }
+}
+```
+
+- Centralising logic in locals reduces duplication and improves maintainability.
+- Locals are best suited for internal logic that remains constant across runs, while variables handle values that differ between deployments.

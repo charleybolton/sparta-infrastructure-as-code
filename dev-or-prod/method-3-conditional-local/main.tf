@@ -1,11 +1,17 @@
-# In this folder, create Terraform code to create an Ansible 'target node' instance (will run the app eventually)
+# Write Terraform code so that:
+# If the environment specified is "dev", one app instance is created
+# If the environment specified is "prod", two app instances are created
 
 
 provider "aws" {
   region = var.aws_region
 }
 
-resource "aws_instance" "ansible_target_node_app" {
+locals {
+  instance_count = var.environment == "dev" ? 1 : 2
+}
+
+resource "aws_instance" "app_instance" {
 
   ami = var.default_ami
 
@@ -13,29 +19,33 @@ resource "aws_instance" "ansible_target_node_app" {
 
   key_name = var.key_name
 
-  associate_public_ip_address = true
-
   vpc_security_group_ids = [aws_security_group.allow_22_3000_80.id]
 
   tags = {
-    Name = var.target_node_name
+    Name = "${var.app_name}-${var.environment}"
   }
 }
 
 # --------------------------------------------------------
 
-resource "aws_security_group" "allow_22_3000_80" {
-  name        = var.node_app_sg_name
-  description = "Allow 22, 3000 and 80 from all"
+data "external" "personal_ip" {
+  program = ["bash", "-c", "curl -s 'https://api.ipify.org?format=json'"]
 }
 
-resource "aws_security_group_rule" "app_node_allow_22_all" {
+# --------------------------------------------------------
+
+resource "aws_security_group" "allow_22_3000_80" {
+  name        = "${var.app_sg_name}-${var.environment}"
+  description = "Allow SSH (22) from personal IP; allow 3000 and 80 from all"
+}
+
+resource "aws_security_group_rule" "app_node_allow_22_personal_ip" {
   type              = "ingress"
-  description       = "Allow 22 from all"
+  description       = "SSH from my IP only"
   from_port         = 22
   to_port           = 22
   protocol          = "tcp"
-  cidr_blocks       = [var.cidr_block_open]
+  cidr_blocks       = ["${data.external.personal_ip.result.ip}/32"]
   security_group_id = aws_security_group.allow_22_3000_80.id
 }
 

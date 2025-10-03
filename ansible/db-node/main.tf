@@ -23,25 +23,18 @@ resource "aws_instance" "ansible_target_node_db" {
 
 # --------------------------------------------------------
 
-data "external" "personal_ip" {
-  program = ["bash", "-c", "curl -s 'https://api.ipify.org?format=json'"]
-}
-
-# --------------------------------------------------------
-
-
 resource "aws_security_group" "allow_22_27017" {
   name        = var.node_db_sg_name
-  description = "Allow SSH (22) from personal IP; allow 27017 from all"
+  description = "Allow 22 and 27017 from all"
 }
 
-resource "aws_security_group_rule" "controller_allow_22_personal_ip" {
+resource "aws_security_group_rule" "controller_allow_22_all" {
   type              = "ingress"
-  description       = "SSH from personal IP only"
+  description       = "Allow 22 from all"
   from_port         = 22
   to_port           = 22
   protocol          = "tcp"
-  cidr_blocks       = ["${data.external.personal_ip.result.ip}/32"]
+  cidr_blocks       = [var.cidr_block_open]
   security_group_id = aws_security_group.allow_22_27017.id
 }
 
