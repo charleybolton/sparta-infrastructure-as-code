@@ -127,8 +127,6 @@ resource "aws_instance" "app_instance" {
 
   subnet_id = aws_subnet.public_subnet.id
 
-  associate_public_ip_address = var.public_ip
-
   key_name = var.key_name
 
   vpc_security_group_ids = [aws_security_group.allow_22_3000_80.id]
@@ -143,6 +141,8 @@ resource "aws_instance" "app_instance" {
 }
 
 # --------------------------------------------------------
+
+# Retrieve local IP address
 
 data "external" "personal_ip" {
   program = ["bash", "-c", "curl -s 'https://api.ipify.org?format=json'"]

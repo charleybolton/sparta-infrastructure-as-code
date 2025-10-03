@@ -1,7 +1,7 @@
 # 🧩 Terraform
 
 - [🧩 Terraform](#-terraform)
-  - [🧱 IaC Setup Guide (Terraform + VS Code)](#-iac-setup-guide-terraform--vs-code)
+  - [🏗️ IaC Setup Guide (Terraform + VS Code)](#️-iac-setup-guide-terraform--vs-code)
   - [☁️ Setting AWS Environment Variables](#️-setting-aws-environment-variables)
   - [🌍 What Is Terraform \& What Is It Used For?](#-what-is-terraform--what-is-it-used-for)
     - [How Does Terraform Act as an Orchestrator?](#how-does-terraform-act-as-an-orchestrator)
@@ -11,38 +11,31 @@
   - [⛔ How Should AWS Credentials Never Be Passed to Terraform?](#-how-should-aws-credentials-never-be-passed-to-terraform)
   - [🌍 Why Use Terraform for Different Environments? (e.g. Production, Testing)](#-why-use-terraform-for-different-environments-eg-production-testing)
   - [🧠 How Does Terraform Work?](#-how-does-terraform-work)
-  - [⚙️ Configuration Drift](#️-configuration-drift)
-  - [🗂️ Adding a `.gitignore`](#️-adding-a-gitignore)
-  - [⚙️ Terraform Commands Overview](#️-terraform-commands-overview)
+    - [Adding a `.gitignore`](#adding-a-gitignore)
+    - [Storing Sensitive Information](#storing-sensitive-information)
+  - [💠 Terraform Commands Overview](#-terraform-commands-overview)
     - [terraform plan](#terraform-plan)
     - [terraform apply](#terraform-apply)
     - [terraform destroy](#terraform-destroy)
+  - [Configuration Drift](#configuration-drift)
     - [Manual vs Terraform Management](#manual-vs-terraform-management)
-  - [🔐 Security Groups in Terraform](#-security-groups-in-terraform)
-    - [Removing All Ingress and Egress Rules](#removing-all-ingress-and-egress-rules)
-    - [Protocols](#protocols)
-    - [Creating Rules Manually (AWS Console)](#creating-rules-manually-aws-console)
-- [Create an ec2 instance](#create-an-ec2-instance)
-- [Cloud provider name (provider block)](#cloud-provider-name-provider-block)
-- [Where to create - which region](#where-to-create---which-region)
-- [On terraform init, terraform creates a hidden terraform folder. At this point it contains the providers.](#on-terraform-init-terraform-creates-a-hidden-terraform-folder-at-this-point-it-contains-the-providers)
-- [Specify resource to create an ec2 instance (resource block)](#specify-resource-to-create-an-ec2-instance-resource-block)
-- [AMI ID](#ami-id)
-- [Type of instance](#type-of-instance)
-- [Public ip of this instance](#public-ip-of-this-instance)
-- [Attach the key to be used with EC2 instance](#attach-the-key-to-be-used-with-ec2-instance)
-- [Specify the security group](#specify-the-security-group)
-- [Name of the instance](#name-of-the-instance)
-- [Security Group](#security-group)
-- [Allow SSH from personal IP only](#allow-ssh-from-personal-ip-only)
-- [Allow port 3000 from anywhere](#allow-port-3000-from-anywhere)
-- [Allow port 80 from anywhere](#allow-port-80-from-anywhere)
-- [Allow all outbound traffic](#allow-all-outbound-traffic)
-  - [🧩 Debug Log – Fixing EC2 / Security Group VPC Mismatch](#-debug-log--fixing-ec2--security-group-vpc-mismatch)
-  - [🧠 Reference – `file()` vs `templatefile()`](#-reference--file-vs-templatefile)
+  - [💻 Terraform Configuration (Code Explained)](#-terraform-configuration-code-explained)
+    - [Provider Block](#provider-block)
+    - [VPC (Virtual Private Cloud)](#vpc-virtual-private-cloud)
+    - [Subnets](#subnets)
+    - [Internet Gateway](#internet-gateway)
+    - [Route Table](#route-table)
+    - [Route Table Association](#route-table-association)
+    - [Database Instance](#database-instance)
+    - [Application Instance](#application-instance)
+  - [🛰️ External Data Source (Personal IP)](#️-external-data-source-personal-ip)
+  - [💡 User Data in Terraform](#-user-data-in-terraform)
+  - [⚙️ Meta-Arguments](#️-meta-arguments)
+  - [🛡️ Security Groups](#️-security-groups)
+  - [🗺️ `map_public_ip_on_launch`](#️-map_public_ip_on_launch)
 
 
-## 🧱 IaC Setup Guide (Terraform + VS Code)
+## 🏗️ IaC Setup Guide (Terraform + VS Code)
 
 **1. Create Your IaC Folder / Repo**
 
@@ -237,30 +230,7 @@ Terraform checks what’s stored in the state folders, downloads providers, and 
 - `terraform apply` / `terraform destroy` → connects to APIs using the provider file and applies or removes resources
 
 
-
-
-
-
-
-
-
-
-
-
----
-
-## ⚙️ Configuration Drift
-- Example: Load balancer on several app VMs  
-- Changes may occur on individual VMs  
-- Problem: Things not running properly between machines (something out of date)  
-
-**Solution:**  
-- Configuration management tools like **Ansible** can handle these issues.  
-- If the drift is minor (e.g., a name change or infrastructure out of alignment), re-running Terraform (an orchestration tool) will fix it.
-
----
-
-## 🗂️ Adding a `.gitignore`
+### Adding a `.gitignore`
 - You can select this when creating a repo on GitHub  
 - Or, if already created and working locally, run:
 
@@ -269,7 +239,14 @@ curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitign
  -o .gitignore
  ```
 
- ## ⚙️ Terraform Commands Overview
+### Storing Sensitive Information
+
+All sensitive information must be encrypted at rest and in transit.
+Passwords and other secrets should be stored in a dedicated secrets manager (e.g., AWS Secrets Manager or HashiCorp Vault) rather than directly in code or configuration files.
+
+---
+
+## 💠 Terraform Commands Overview
 
 ### terraform plan
 
@@ -280,7 +257,6 @@ curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitign
   Non-destructive — it **does not** modify your infrastructure.  
   Use it to review and confirm changes before applying.
 
----
 
 ### terraform apply
 
@@ -292,7 +268,6 @@ curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitign
 - **Tip:**  
   Always review the plan summary carefully before typing “yes” to confirm.
 
----
 
 ### terraform destroy
 
@@ -304,7 +279,16 @@ curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitign
 - **Warning:**  
   This action is **irreversible** — it permanently deletes all managed resources.
 
----
+
+## Configuration Drift
+- Example: Load balancer on several app VMs  
+- Changes may occur on individual VMs  
+- Problem: Things not running properly between machines (something out of date)  
+
+**Solution:**  
+- Configuration management tools like **Ansible** can handle these issues.  
+- If the drift is minor (e.g., a name change or infrastructure out of alignment), re-running Terraform (an orchestration tool) will fix it.
+
 
 ### Manual vs Terraform Management
 
@@ -314,33 +298,145 @@ curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitign
 
 ---
 
-## 🔐 Security Groups in Terraform
+## 💻 Terraform Configuration (Code Explained)
 
-### Removing All Ingress and Egress Rules
+### Provider Block
+- Defines which **cloud provider** to use (AWS).  
+- Region is passed as a variable (`var.aws_region`).  
+- On `terraform init`, Terraform downloads the **AWS provider plugin** into the hidden `.terraform` folder.
 
-The `ingress` and `egress` arguments are processed in **attributes-as-blocks** mode.  
-Because of this, simply deleting these arguments from your configuration will **not** automatically remove existing rules.
+### VPC (Virtual Private Cloud)
+- Creates an **isolated network** for resources.  
+- `cidr_block` defines the private IP address range.  
+- All other infrastructure (subnets, EC2, etc.) exists inside this VPC.
 
-To remove all default managed ingress and egress rules and start with a blank security group:
+### Subnets
+- **Public subnet** → hosts the app EC2 (internet-facing).  
+- **Private subnet** → hosts the database EC2 (no direct internet access).  
+- Each subnet is tied to a specific **availability zone** for resilience.  
+- `map_public_ip_on_launch = true` automatically assigns public IPs to instances in the public subnet.
+
+### Internet Gateway
+- Connects the VPC to the **internet**.  
+- Required for any instances that need public access.  
+- Must be attached to the same VPC as the subnets.
+
+### Route Table
+- Defines **where traffic goes**.  
+- `cidr_block = "0.0.0.0/0"` → routes all outbound internet traffic through the Internet Gateway.  
+- The public subnet must be explicitly **associated** with this route table.
+
+### Route Table Association
+- Links the **public subnet** to the route table.  
+- Without this association, even with an Internet Gateway, the subnet will not have internet connectivity.
+
+### Database Instance
+- Deployed in the **private subnet** (no public IP).  
+- Uses the **DB security group**.  
+- Accessible only from the app subnet.
+
+### Application Instance
+- Deployed in the **public subnet** (has a public IP).  
+- Uses the **App security group**.  
+- Connects to the database via its **private IP**.  
+- Depends on the database instance (`depends_on` ensures correct creation order).
+
+---
+
+## 🛰️ External Data Source (Personal IP)
+
+Used to dynamically fetch the **current public IP address** of the local machine running Terraform.
+
+Terraform does this with an **external data source**, which allows it to execute an external program and read its output.
 
 ```bash
-resource "aws_security_group" "example" {
-  name   = "sg"
-  vpc_id = aws_vpc.example.id
-
-  ingress = []
-  egress  = []
+data "external" "personal_ip" {
+program = ["bash", "-c", "curl -s 'https://api.ipify.org?format=json'"]
 }
 ```
 
-This clears all default rules, allowing you to define your own explicitly.
+**Explanation:**
+- `data` → defines a **data source** (something Terraform reads but doesn’t create).  
+- `"external"` → tells Terraform to use the **external data source plugin**, which can execute programs and capture their output.  
+- `program = [...]` → specifies the command to run:
+  - `"bash"` → runs the command in a Bash shell.  
+  - `"-c"` → tells Bash to **execute the following string** as a command.  
+  - `"curl -s 'https://api.ipify.org?format=json'"` → quietly (`-s`) calls the `ipify.org` API to return the machine’s public IP address in JSON format (e.g. `{"ip": "82.41.123.57"}`).
 
-### Protocols
+The command runs locally, Terraform reads the JSON response, and makes it accessible under `data.external.personal_ip.result.ip`
 
-- `protocol = "tcp"` → allows TCP traffic (used for SSH, HTTP, etc.)  
-- `protocol = "-1"` → allows **all** protocols (used for full outbound access)
+**Why this is useful:**  
+- Prevents manually hardcoding an IP address in the configuration.  
+- Ensures SSH access is always limited to the machine applying the Terraform code.  
+- Keeps security groups automatically up to date if the IP changes.
 
-### Creating Rules Manually (AWS Console)
+**Example in the configuration:**
+
+`cidr_blocks = ["${data.external.personal_ip.result.ip}/32"]`
+
+-  `${ ... }` → interpolation syntax used to **insert a Terraform value** (like a variable or data source result) inside a string.
+- `data.external.personal_ip.result.ip` retrieves the IP returned by the external data source.  
+- `/32` is essential — it represents a **single IP address** in CIDR notation, meaning **only that one IP** is allowed access.  
+  (Without `/32`, AWS would interpret it as an invalid or incomplete range.)
+
+**Summary:**
+- The external data source dynamically gets the current IP.  
+- Adding `/32` locks SSH access down to just that IP for maximum security.  
+- Ideal for creating security groups that only allow personal SSH access.
+
+---
+
+## 💡 User Data in Terraform
+
+Terraform provides two functions for including these scripts:
+
+| Function | Variable Substitution | Use Case |
+|-----------|----------------------|-----------|
+| `file()` | ❌ No | For **static** scripts that don’t change between environments |
+| `templatefile()` | ✅ Yes | For **dynamic** scripts that need to inject variable values (e.g. private IPs, database names, credentials) |
+
+**Example Explanation:**
+
+```bash
+user_data = templatefile("scripts/app-user-data.sh", 
+{ db_ip = aws_instance.db_instance.private_ip })
+```
+
+- `templatefile()` reads the file `scripts/app-user-data.sh`.
+- Inside that script, any placeholder written as `${db_ip}` will be replaced with the **private IP address** of the database EC2 instance.
+- This allows the application instance to automatically know how to connect to the database on launch, without manually editing the script.
+
+**Summary:**
+- Use `file()` when the script stays the same everywhere (e.g. basic setup).  
+- Use `templatefile()` when the script must dynamically reference Terraform resources or variables.
+
+Although terraform runs the db automatically first as the app references the db it's good to use depends on explicity for human readability.
+
+---
+
+## ⚙️ Meta-Arguments
+
+- `depends_on` → enforces resource creation order (used to launch the db before the app)
+- `count` → creates multiple identical resources.  
+- `for_each` → creates multiple unique resources from a map or list.  
+
+Terraform automatically detects dependencies when one resource references another (e.g. `aws_instance.db_instance.private_ip`).
+
+Although Terraform automatically provisions the database first because the app depends on it, it’s still good practice to use depends_on explicitly for clarity and human readability.
+
+---
+
+## 🛡️ Security Groups
+
+- Use `{}` or `[]` to clear default rules before defining custom ones.  
+- Example: `ingress = []`, `egress = []`.
+
+Protocols:
+
+- `protocol = "tcp"` → used for SSH, HTTP, etc.  
+- `protocol = "-1"` → allows all protocols (used for full outbound access).
+
+If comparing these rules to the AWS console manual insertion:
 
 The **Type** dropdown in the AWS Console is a shortcut — it automatically fills in the protocol and port range for you.
 
@@ -352,179 +448,34 @@ The **Type** dropdown in the AWS Console is a shortcut — it automatically fill
 
 Terraform doesn’t use a `type` field — you must define each protocol and port range explicitly.
 
-
-
-# Create an ec2 instance
-
-# Cloud provider name (provider block)
-
-provider "aws" {
-  # Where to create - which region
-  region = var.aws_region
-}
-
-# On terraform init, terraform creates a hidden terraform folder. At this point it contains the providers.
-
-# Specify resource to create an ec2 instance (resource block)
-
-resource "aws_instance" "test_instance" {
-
-  # AMI ID
-  ami = var.app_ami_id
-
-  # Type of instance
-  instance_type = var.app_instance_type
-
-  # Public ip of this instance
-  associate_public_ip_address = var.app_ip
-
-  # Attach the key to be used with EC2 instance
-  key_name = var.key_name
-
-  # Specify the security group 
-  vpc_security_group_ids = [aws_security_group.allow_22_3000_80.id]
-
-  # Name of the instance
-  tags = {
-    Name = var.app_name
-  }
-}
-
-# Security Group
-resource "aws_security_group" "allow_22_3000_80" {
-  name        = "tech511-charley-tf-allow-port-22-3000-80"
-  description = "Allow SSH (22) from personal IP; allow 3000 and 80 from all"
-}
-
-# Allow SSH from personal IP only
-resource "aws_security_group_rule" "allow_ssh_personal_ip" {
-  type              = "ingress"
-  description       = "SSH from my IP only"
-  from_port         = 22
-  to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks       = [var.personal_ip]
-  security_group_id = aws_security_group.allow_22_3000_80.id
-}
-
-# Allow port 3000 from anywhere
-resource "aws_security_group_rule" "allow_3000_all" {
-  type              = "ingress"
-  description       = "Allow 3000 from all"
-  from_port         = 3000
-  to_port           = 3000
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.allow_22_3000_80.id
-}
-
-# Allow port 80 from anywhere
-resource "aws_security_group_rule" "allow_80_all" {
-  type              = "ingress"
-  description       = "Allow 80 from all"
-  from_port         = 80
-  to_port           = 80
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.allow_22_3000_80.id
-}
-
-# Allow all outbound traffic
-resource "aws_security_group_rule" "allow_all_outbound" {
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.allow_22_3000_80.id
-}
-
-https://registry.terraform.io/providers/serverscom/serverscom/latest/docs/guides/user-data - user data
-
-
-
-Introduction
-You can use meta-arguments in any type of resource, including resources created with data blocks. You can also use most meta-arguments in module blocks.
-
-The provider developer determines resource-specific arguments, but all resources support meta-arguments that let you manage resources' infrastructure lifecycle, including destruction behavior, preventing destruction, and establishing dependencies between resources. Terraform provides the following meta-arguments.
-
-depends_on
-The depends_on meta-argument establishes dependencies between resources that do not directly reference one another. Use the depends_on argument to explicitly set the order in which Terraform creates resources.
-
-
-
-## 🧩 Debug Log – Fixing EC2 / Security Group VPC Mismatch
-
-**Error Message**
-Error: creating EC2 Instance: operation error EC2: RunInstances, 
-https response error StatusCode: 400, RequestID: 2f7118c5-28d1-448b-bf7f-1fc5d7e7a17f, 
-api error InvalidParameter: Security group sg-0a04a9472be6f4c71 and subnet subnet-0314db0f0470b807f belong to different networks.
-
-**Diagnosis**
-- Terraform was trying to launch an EC2 instance in my **custom VPC**,  
-  but the **security group** being attached was created in the **default VPC**.  
-- This caused a mismatch error because security groups and subnets must belong to the same VPC.
-
-**Cause**
-- The `vpc_id` argument was **missing** from both security group resources:
-
-  resource "aws_security_group" "allow_22_27017" {
-    name        = "tech511-charley-tf-allow-port-22-27017"
-    description = "Allow SSH (22) from personal IP; allow 27017 from all"
-  }
-
-  Without `vpc_id`, Terraform defaults to the **default AWS VPC**.
-
-**Fix**
-- Added `vpc_id = aws_vpc.main.id` to both security group resources:
-
-  resource "aws_security_group" "allow_22_27017" {
-    name        = "tech511-charley-tf-allow-port-22-27017"
-    description = "Allow SSH (22) from personal IP; allow 27017 from all"
-    vpc_id      = aws_vpc.main.id
-  }
-
-  resource "aws_security_group" "allow_22_3000_80" {
-    name        = "tech511-charley-tf-allow-port-22-3000-80"
-    description = "Allow SSH (22) from personal IP; allow 3000 and 80 from all"
-    vpc_id      = aws_vpc.main.id
-  }
-
-**Reapply**
-- Recreated both SGs in the correct VPC using:
-
-  terraform apply -replace=aws_security_group.allow_22_27017 -replace=aws_security_group.allow_22_3000_80
-
-✅ **Result**
-- Terraform successfully deployed the EC2 instances with matching subnets and security groups.
-- Error resolved.
-
 ---
 
-## 🧠 Reference – `file()` vs `templatefile()`
+## 🗺️ `map_public_ip_on_launch`
 
-**1️⃣ `file()`**  
-- Reads a file *exactly as it is*.  
-- Use when your file doesn’t contain variables or placeholders.  
-- Example:
+In the AWS Console, the **“Enable Auto-assign Public IP”** toggle appears during EC2 setup, but it actually controls a **subnet-level** setting.
 
-  user_data = file("scripts/setup.sh")
+When this option is enabled, AWS configures the subnet to automatically assign public IPs to any instance launched inside it.
 
-  → Terraform just inserts the plain text of `setup.sh`.
+In Terraform: 
 
-**2️⃣ `templatefile()`**  
-- Reads a file **and substitutes variables** inside it.  
-- Use when your file includes placeholders like `${variable}`.  
-- Example:
+`map_public_ip_on_launch = true` is on the subnet level.
 
-  user_data = templatefile("scripts/app-image-user-data.sh", {
-    db_ip = aws_instance.db_instance.private_ip
-  })
+→ Automatically assigns a public IP to every instance in the subnet.
 
-  → Terraform replaces `${db_ip}` in your script with the actual DB IP address.
+`associate_public_ip_address = true` is on the instance level.
 
-✅ **Summary**
-| Function | Variable Substitution | Use Case |
-|-----------|----------------------|-----------|
-| `file()` | ❌ No | Static files |
-| `templatefile()` | ✅ Yes | Dynamic files with variables |
+→ Assigns a public IP only to that specific instance.
+
+**Why subnet-level is preferred:**
+- Cleaner and easier to manage.  
+- Reflects how AWS handles this setting internally.  
+- Avoids repeating the same config for each public instance.
+
+**Summary:**
+The console toggle looks instance-specific, but it’s a subnet setting.  
+
+In Terraform, use `map_public_ip_on_launch` for subnet-wide behaviour and reserve `associate_public_ip_address` for one-off overrides.
+
+
+
+
