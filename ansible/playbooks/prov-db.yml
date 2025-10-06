@@ -1,0 +1,84 @@
+---
+
+- name: install nginx
+  hosts: db
+  gather_facts: yes
+  become: true
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: add GPG key
+      ansible.builtin.apt_key:
+        url: https://www.mongodb.org/static/pgp/server-7.0.asc
+        state: present
+
+    - name: Add the MongoDB repository
+      ansible.builtin.apt_repository:
+        repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/7.0 multiverse"
+        state: present
+        update_cache: yes
+
+### 
+
+    - name: Install MongoDB 7.0
+      ansible.builtin.apt:
+        name: mongodb-org
+        state: present
+
+    - name: allow remote connections (bindIp 0.0.0.0)
+      ansible.builtin.lineinfile:
+        path: /etc/mongod.conf
+        regexp: '^ *bindIp:'
+        line: '  bindIp: 0.0.0.0'
+        backup: yes
+
+    - name: enable and restart MongoDB service
+      ansible.builtin.service:
+        name: mongod
+        state: restarted
+        enabled: yes
+
+##########################################
+# EXPLANATION OF PLAYBOOK
+# ---                                         -> Marks the start of the YAML document.
+#
+# - name: install nginx                       -> Names the play “install nginx” (appears in Ansible output logs).
+# hosts: db                                   -> Specifies that this play runs on all hosts within the [db] group in the inventory.
+# gather_facts: yes                           -> Collects detailed system facts (OS type, version, distribution release, etc.) 
+#                                                before running tasks.
+# become: true                                -> Runs all tasks with elevated (sudo) privileges required for system changes.
+#
+# tasks:                                      -> Begins the list of tasks to be executed sequentially.
+#
+#   - name: update apt cache                  -> Names the first task “update apt cache”.
+#     ansible.builtin.apt:                    -> Uses the built-in apt module for package management on Debian/Ubuntu systems.
+#       update_cache: yes                     -> Refreshes the local package index (equivalent to running “sudo apt update”).
+#
+#   - name: upgrade all packages              -> Names the second task “upgrade all packages”.
+#     ansible.builtin.apt:                    -> Uses the apt module.
+#       upgrade: dist                         -> Performs a distribution upgrade (equivalent to “sudo apt dist-upgrade”), 
+#                                                intelligently handling package dependencies and kernel updates.
+#
+#   - name: add GPG key                       -> Names the third task “add GPG key”.
+#     ansible.builtin.apt_key:                -> Uses the apt_key module to manage trusted repository keys.
+#       url: https://www.mongodb.org/static/pgp/server-7.0.asc
+#                                              -> Specifies the URL where MongoDB’s official GPG key is hosted.
+#       state: present                        -> Ensures the key is added to the system’s trusted keyring 
+#                                                (idempotent — adds only if missing).
+#
+#   - name: Add the MongoDB repository        -> Names the fourth task “Add the MongoDB repository”.
+#     ansible.builtin.apt_repository:         -> Uses the apt_repository module to manage APT software repositories.
+#       repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/7.0 multiverse"
+#                                              -> Defines the repository configuration line.  
+#                                                 “{{ ansible_distribution_release }}” dynamically inserts the 
+#                                                 current Ubuntu release name (e.g. jammy, focal).
+#       state: present                        -> Ensures the repository is added to the system sources list.
+#       update_cache: yes                     -> Immediately refreshes the package index after adding the repository.
+##########################################

@@ -34,7 +34,6 @@
   - [🛡️ Security Groups](#️-security-groups)
   - [🗺️ `map_public_ip_on_launch`](#️-map_public_ip_on_launch)
 
-
 ## 🏗️ IaC Setup Guide (Terraform + VS Code)
 
 **1. Create Your IaC Folder / Repo**
@@ -71,8 +70,6 @@ This step confirms Terraform is installed **system-wide**, meaning you can run T
 
 ⚠️ If the command only works in one specific folder, Terraform isn’t in your PATH and needs to be added manually.
 
----
-
 ## ☁️ Setting AWS Environment Variables
 
 **1. Open your terminal**
@@ -86,7 +83,6 @@ Run the following command to open your `.zshrc` file in the nano text editor:
 *💻 Windows users:* open **Git Bash** instead, and use the same command to edit your `.bash_profile`:
 
 `nano ~/.bash_profile`
-
 
 **3. Add your AWS credentials**
 
@@ -123,8 +119,6 @@ printenv AWS_SECRET_ACCESS_KEY
 
 ✅ If both commands display your keys, the setup worked correctly.
 
---
-
 ## 🌍 What Is Terraform & What Is It Used For?
 
 * Orchestration tool
@@ -139,8 +133,6 @@ printenv AWS_SECRET_ACCESS_KEY
 ### How Does Terraform Act as an Orchestrator?
 
 Takes care of order in which to create/modify/destroy
-
----
 
 ## ✨ What Are the Benefits of Terraform?
 
@@ -162,15 +154,11 @@ Takes care of order in which to create/modify/destroy
   + Each cloud vendor maintains its own provider, so Terraform can communicate with it using APIs.  
   + This makes Terraform very **flexible, expressive, and extendible** — one tool to manage everything, even in multi-cloud setups.  
 
----
-
 ## 🧭 Alternatives To Terraform
 
 - **Pulumi** – Similar to Terraform but **imperative**, meaning you use real programming languages (like Python, TypeScript, or Go) to write your infrastructure code.  
   
 - **AWS CloudFormation**, **GCP Deployment Manager**, **Azure Resource Manager** – Cloud-specific IaC products. These are managed by the individual cloud vendors and only work within their own ecosystems.
-
----
 
 ## 🔐 Best Practice: Supplying AWS Credentials to Terraform
 
@@ -188,14 +176,10 @@ Terraform looks for credentials in this order:
 
 4. **If using Terraform on EC2 instance**, we can give an IAM role ➡️ (absolutely best practice)
 
----
-
 ## ⛔ How Should AWS Credentials Never Be Passed to Terraform?
 
 - **NEVER hard-code them** in `.tf` files or variables.  
 - Credentials must **never end up in a public Git repo** — this is a major security risk.
-
----
 
 ## 🌍 Why Use Terraform for Different Environments? (e.g. Production, Testing)
 
@@ -206,8 +190,6 @@ Examples:
   - Easily/quickly bring it down at COB (close of business).  
 
   - **Consistency between environments**, reducing bugs caused by my environment discrepancies. 
-
----
 
 ## 🧠 How Does Terraform Work?
 
@@ -229,7 +211,6 @@ Terraform checks what’s stored in the state folders, downloads providers, and 
 - `terraform plan` → non-destructive; shows what changes will be made  
 - `terraform apply` / `terraform destroy` → connects to APIs using the provider file and applies or removes resources
 
-
 ### Adding a `.gitignore`
 - You can select this when creating a repo on GitHub  
 - Or, if already created and working locally, run:
@@ -244,8 +225,6 @@ curl -s https://raw.githubusercontent.com/github/gitignore/main/Terraform.gitign
 All sensitive information must be encrypted at rest and in transit.
 Passwords and other secrets should be stored in a dedicated secrets manager (e.g., AWS Secrets Manager or HashiCorp Vault) rather than directly in code or configuration files.
 
----
-
 ## 💠 Terraform Commands Overview
 
 ### terraform plan
@@ -257,7 +236,6 @@ Passwords and other secrets should be stored in a dedicated secrets manager (e.g
   Non-destructive — it **does not** modify your infrastructure.  
   Use it to review and confirm changes before applying.
 
-
 ### terraform apply
 
 - **Purpose:** Executes the plan — **creates, updates, or deletes** resources based on your configuration.  
@@ -267,7 +245,6 @@ Passwords and other secrets should be stored in a dedicated secrets manager (e.g
   Destructive — it **does** modify your infrastructure.  
 - **Tip:**  
   Always review the plan summary carefully before typing “yes” to confirm.
-
 
 ### terraform destroy
 
@@ -279,8 +256,10 @@ Passwords and other secrets should be stored in a dedicated secrets manager (e.g
 - **Warning:**  
   This action is **irreversible** — it permanently deletes all managed resources.
 
-
 ## Configuration Drift
+
+![Diagram Demonstrating Configuration Drift](../images/configuration-drift.png)
+
 - Example: Load balancer on several app VMs  
 - Changes may occur on individual VMs  
 - Problem: Things not running properly between machines (something out of date)  
@@ -289,14 +268,11 @@ Passwords and other secrets should be stored in a dedicated secrets manager (e.g
 - Configuration management tools like **Ansible** can handle these issues.  
 - If the drift is minor (e.g., a name change or infrastructure out of alignment), re-running Terraform (an orchestration tool) will fix it.
 
-
 ### Manual vs Terraform Management
 
 - Avoid switching between manual AWS Console changes and Terraform management.  
 - Doing so can cause **drift** — where real infrastructure no longer matches your Terraform state.  
 - Always update and apply changes through Terraform for consistency and accuracy.
-
----
 
 ## 💻 Terraform Configuration (Code Explained)
 
@@ -341,8 +317,6 @@ Passwords and other secrets should be stored in a dedicated secrets manager (e.g
 - Connects to the database via its **private IP**.  
 - Depends on the database instance (`depends_on` ensures correct creation order).
 
----
-
 ## 🛰️ External Data Source (Personal IP)
 
 Used to dynamically fetch the **current public IP address** of the local machine running Terraform.
@@ -384,8 +358,6 @@ The command runs locally, Terraform reads the JSON response, and makes it access
 - Adding `/32` locks SSH access down to just that IP for maximum security.  
 - Ideal for creating security groups that only allow personal SSH access.
 
----
-
 ## 💡 User Data in Terraform
 
 Terraform provides two functions for including these scripts:
@@ -412,8 +384,6 @@ user_data = templatefile("scripts/app-user-data.sh",
 
 Although terraform runs the db automatically first as the app references the db it's good to use depends on explicity for human readability.
 
----
-
 ## ⚙️ Meta-Arguments
 
 - `depends_on` → enforces resource creation order (used to launch the db before the app)
@@ -423,8 +393,6 @@ Although terraform runs the db automatically first as the app references the db 
 Terraform automatically detects dependencies when one resource references another (e.g. `aws_instance.db_instance.private_ip`).
 
 Although Terraform automatically provisions the database first because the app depends on it, it’s still good practice to use depends_on explicitly for clarity and human readability.
-
----
 
 ## 🛡️ Security Groups
 
@@ -447,8 +415,6 @@ The **Type** dropdown in the AWS Console is a shortcut — it automatically fill
 | Custom TCP | TCP | Custom | `protocol = "tcp"`, `from_port = <port>`, `to_port = <port>` |
 
 Terraform doesn’t use a `type` field — you must define each protocol and port range explicitly.
-
----
 
 ## 🗺️ `map_public_ip_on_launch`
 

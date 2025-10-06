@@ -1,0 +1,26 @@
+---
+
+- name: print facts
+  hosts: all
+  gather_facts: true
+  
+  tasks:
+  - name: print facts
+    ansible.builtin.debug:
+      var: ansible_facts
+
+##########################################
+# EXPLANATION OF PLAYBOOK
+# ---                                         -> Marks the start of a YAML document.
+#
+# - name: print facts                         -> Names this play "print facts" for easier identification in logs/output.
+# hosts: all                                  -> Tells Ansible to run this play on all hosts listed in the inventory file.
+# gather_facts: true                          -> Instructs Ansible to automatically collect system information (called “facts”)
+#                                                from each host before running any tasks (e.g. OS, IP, CPU, memory, etc.).
+#
+# tasks:                                      -> Defines the list of actions (tasks) Ansible will perform on each host.
+#   - name: print facts                       -> Names this specific task "print facts" so it appears clearly in the output.
+#     ansible.builtin.debug:                  -> Uses Ansible’s built-in “debug” module to display information to the console.
+#       var: ansible_facts                    -> Specifies which variable to print — in this case, "ansible_facts",
+#                                                which contains all the gathered system facts about the host.
+##########################################

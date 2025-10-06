@@ -9,11 +9,9 @@
   - [📍 When/Where to Use IaC](#-whenwhere-to-use-iac)
   - [🧰 Tools Available for IaC / Types of IaC Tools](#-tools-available-for-iac--types-of-iac-tools)
 
-
 ## ⚙️ What Is the Problem?
 
 We are still manually "provisioning" on the servers. Provisioning means the process of setting up and configuring server.
-
 
 ## 🤖 What Have We Automated So Far?
 
@@ -64,8 +62,7 @@ Two types of Iac tools:
 
 E.g. Chef, Puppet, Ansible
 
-1.  **Orchestration tools** - best for managing infrastructure, such as VMs, security groups, route tables. In IaC, orchestration is the process of automating and managing the entire lifecycle of infrastructure resources.
-
+2. **Orchestration tools** - best for managing infrastructure, such as VMs, security groups, route tables. In IaC, orchestration is the process of automating and managing the entire lifecycle of infrastructure resources.
 
 Process of automating and managing the entire lifecycle of infrastructure resources.
 

@@ -40,9 +40,6 @@ Terraform’s syntax always follows:
 Explanation:  
 You’re setting the `count` argument **equal to** a conditional expression.  
 
-
----
-
 ## 🧩 String Interpolation & Concatenation
 
 Terraform uses `${}` for **interpolation**, allowing you to combine variables, expressions, and strings.
@@ -65,8 +62,6 @@ or
 `name = join("_", [var.app_name, var.environment])`
 
 These all produce the same results
-
----
 
 ## 🧱 Workspaces Overview
 
@@ -103,8 +98,6 @@ bucket = "my-bucket-${terraform.workspace}"
 ```
 
 This automatically appends the current workspace name (e.g. `my-bucket-dev`, `my-bucket-prod`).
-
----
 
 ## 🌍 Locals Overview
 

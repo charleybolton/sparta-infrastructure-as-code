@@ -1,0 +1,142 @@
+---
+
+- name: install app dependencies and run app
+  hosts: web
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: install curl
+      ansible.builtin.apt:
+        name: curl
+        state: present
+
+    # - name: remove old node packages
+    #   ansible.builtin.apt:
+    #     name:
+    #       - nodejs
+    #       - libnode-dev
+    #     state: absent
+
+    - name: add Node.js 20.x setup script
+      ansible.builtin.shell: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+    - name: install nodejs
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+
+    - name: install git
+      ansible.builtin.apt:
+        name: git
+        state: present
+
+    - name: clone app repo
+      ansible.builtin.git:
+        repo: https://github.com/charleybolton/sparta-first-app.git
+        dest: /home/ubuntu/sparta-first-app
+        version: main
+
+    - name: install npm dependencies
+      ansible.builtin.shell: npm install
+      args:
+        chdir: /home/ubuntu/sparta-first-app/app
+
+    - name: start app in background with nohup
+      ansible.builtin.shell: |
+        nohup npm start > app.log 2>&1 &
+      args:
+        chdir: /home/ubuntu/sparta-first-app/app
+        executable: /bin/bash
+
+    - name: allow port 3000 through UFW
+      ansible.builtin.ufw:
+        rule: allow
+        port: 3000
+        proto: tcp
+
+##########################################
+# EXPLANATION OF PLAYBOOK
+# ---                                         -> Marks the start of the YAML document.
+#
+# - name: install app dependencies and run app -> Names the play “install app dependencies and run app”.
+# hosts: web                                  -> Targets all hosts under the [web] group in the inventory file.
+# become: true                                -> Runs all tasks with elevated (sudo) privileges.
+# gather_facts: yes                           -> Collects system facts (e.g. OS type, version, IP, CPU, etc.) before running tasks.
+#
+# tasks:                                      -> Begins the list of tasks that Ansible will perform sequentially.
+#
+#   - name: update apt cache                  -> Names the first task “update apt cache”.
+#     ansible.builtin.apt:                    -> Uses Ansible’s built-in apt module for package management.
+#       update_cache: yes                     -> Refreshes the list of available packages (equivalent to “sudo apt update”).
+#
+#   - name: install nginx                     -> Names the second task “install nginx”.
+#     ansible.builtin.apt:                    -> Uses the apt module.
+#       name: nginx                           -> Specifies the package name “nginx” to install.
+#       state: present                        -> Ensures the nginx package is installed; does nothing if already installed.
+#
+#   - name: install curl                      -> Names the third task “install curl”.
+#     ansible.builtin.apt:                    -> Uses the apt module again for package installation.
+#       name: curl                            -> Specifies the package name “curl”.
+#       state: present                        -> Ensures curl is installed and does nothing if it already exists.
+#
+#   # - name: remove old node packages         -> (Commented out) Would name the task “remove old node packages”.
+#   #   ansible.builtin.apt:                   -> (Commented out) Uses the apt module for package removal.
+#   #     name:                                -> (Commented out) Lists the package names to remove.
+#   #       - nodejs                           -> (Commented out) Specifies the first package to remove.
+#   #       - libnode-dev                      -> (Commented out) Specifies the second package to remove.
+#   #     state: absent                        -> (Commented out) Ensures these packages are removed if present.
+#
+#   - name: add Node.js 20.x setup script     -> Names the fourth task “add Node.js 20.x setup script”.
+#     ansible.builtin.shell: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+#                                              -> Uses the shell module to execute a shell command that downloads and runs
+#                                                 the NodeSource setup script, adding the Node.js 20.x repository to apt sources.
+#
+#   - name: install nodejs                    -> Names the fifth task “install nodejs”.
+#     ansible.builtin.apt:                    -> Uses the apt module.
+#       name: nodejs                          -> Specifies the package “nodejs” to install.
+#       state: present                        -> Ensures Node.js is installed; skips if already installed.
+#
+#   - name: install git                       -> Names the sixth task “install git”.
+#     ansible.builtin.apt:                    -> Uses the apt module.
+#       name: git                             -> Specifies the package “git”.
+#       state: present                        -> Ensures Git is installed; does nothing if already installed.
+#
+#   - name: clone app repo                    -> Names the seventh task “clone app repo”.
+#     ansible.builtin.git:                    -> Uses the Git module to clone a repository.
+#       repo: https://github.com/charleybolton/sparta-first-app.git
+#                                              -> URL of the remote GitHub repository to clone.
+#       dest: /home/ubuntu/sparta-first-app   -> Destination directory on the target host for the cloned files.
+#       version: main                         -> Specifies the branch to clone (main branch).
+#
+#   - name: install npm dependencies          -> Names the eighth task “install npm dependencies”.
+#     ansible.builtin.shell: npm install      -> Uses the shell module to execute “npm install” which installs dependencies 
+#                                                listed in the project’s package.json file.
+#     args:                                   -> Additional arguments for the shell task.
+#       chdir: /home/ubuntu/sparta-first-app/app
+#                                              -> Changes directory before running the command (runs inside the app folder).
+#
+#   - name: start app in background with nohup -> Names the ninth task “start app in background with nohup”.
+#     ansible.builtin.shell: |                -> Uses the shell module with a multi-line command.
+#       nohup npm start > app.log 2>&1 &      -> Runs “npm start” in the background, redirects output to app.log, and keeps
+#                                                it running even after logout (nohup prevents termination).
+#     args:                                   -> Additional arguments for the shell module.
+#       chdir: /home/ubuntu/sparta-first-app/app
+#                                              -> Changes directory to the app folder before executing the command.
+#       executable: /bin/bash                 -> Specifies Bash as the shell to use for running the command.
+#
+#   - name: allow port 3000 through UFW        -> Names the tenth task “allow port 3000 through UFW”.
+#     ansible.builtin.ufw:                     -> Uses the UFW (Uncomplicated Firewall) module to modify firewall rules.
+#       rule: allow                            -> Allows traffic matching the specified parameters.
+#       port: 3000                             -> Opens port 3000 for inbound connections (used by the Node.js app).
+#       proto: tcp                             -> Limits the rule to TCP traffic.
+##########################################

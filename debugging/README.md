@@ -53,8 +53,6 @@ api error InvalidParameter: Security group sg-0a04a9472be6f4c71 and subnet subne
 - Terraform successfully deployed the EC2 instances with matching subnets and security groups.
 - Error resolved.
 
----
-
 ## 2️⃣ Fixing SSH Key Permission Error
 
 **Error Message**

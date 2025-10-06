@@ -1,0 +1,48 @@
+---
+
+- name: install nginx
+  hosts: web
+  gather_facts: yes
+  become: true
+
+  tasks:
+  - name: update apt cache
+    ansible.builtin.apt:
+      update_cache: yes
+  
+  - name: upgrade all packages
+    ansible.builtin.apt:
+      upgrade: dist
+  
+  - name: install nginx
+    ansible.builtin.apt: pkg=nginx state=present
+
+##########################################
+# EXPLANATION OF PLAYBOOK
+# ---                                         -> Marks the start of the YAML document.
+#
+# - name: install nginx                       -> Names the play “install nginx” (for readability in logs/output).
+# hosts: web                                  -> Targets all hosts in the [web] group from the inventory file.
+#
+# gather_facts: yes                           -> Tells Ansible to collect detailed system information from each host 
+#                                                (e.g. OS type, network interfaces, memory, etc.) before running tasks.
+#
+# become: true                                -> Runs all tasks with elevated (sudo) privileges — required for package installs.
+#
+# tasks:                                      -> Begins a list of actions Ansible will execute on the target hosts.
+#
+#   - name: update apt cache                  -> Names the first task. It refreshes the package index (similar to "apt update").
+#     ansible.builtin.apt:                    -> Uses the built-in “apt” module (for Debian/Ubuntu systems).
+#       update_cache: yes                     -> Updates the list of available packages and versions.
+#
+#   - name: upgrade all packages              -> Names the second task. It upgrades all installed packages.
+#     ansible.builtin.apt:                    -> Again uses the apt module.
+#       upgrade: dist                         -> Performs a “distribution upgrade” (like "sudo apt dist-upgrade"), 
+#                                                updating all packages and handling dependencies automatically.
+#
+#   - name: install nginx                     -> Names the third task. It installs the Nginx web server.
+#     ansible.builtin.apt: pkg=nginx state=present
+#                                              -> Uses the apt module to ensure the "nginx" package is installed.
+#                                                 "state=present" means install it if missing, do nothing if already present 
+#                                                 (idempotent behaviour).
+##########################################

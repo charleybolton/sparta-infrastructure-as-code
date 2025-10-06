@@ -34,8 +34,6 @@ resource "github_repository" "charley_tf_repo" {
 - The local name `charley_tf_repo` is used internally within Terraform for referencing.  
 - Repository details such as name, description, visibility, and README initialisation are defined through variables for flexibility and reusability.  
 
----
-
 ## 🔑 Environment Variable Setup
 
 Terraform automatically reads the GitHub token from the `$GITHUB_TOKEN` environment variable.  
@@ -76,8 +74,6 @@ Explanation:
 By including this line in `.zshrc`, the token is automatically pulled from the encrypted Keychain and loaded securely into memory each time a terminal opens.  
 
 Terraform can then access `$GITHUB_TOKEN` instantly for authentication, without any secrets being stored in plain text or hardcoded in files.
-
----
 
 1. Reload the terminal configuration
 
