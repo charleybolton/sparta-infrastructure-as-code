@@ -1,0 +1,117 @@
+# ✅ Idempotency: ~95%
+# Everything except npm install and npm start are idempotent (they re-run harmlessly)
+
+---
+
+- name: install app dependencies and run app
+  hosts: web
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: install nginx
+      ansible.builtin.apt:
+        pkg: nginx
+        state: present
+
+    - name: Download NodeSource setup script for Node.js 20.x
+      ansible.builtin.get_url:
+        url: https://deb.nodesource.com/setup_20.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
+
+    - name: Run NodeSource setup script on target node
+      ansible.builtin.shell: bash /tmp/nodesource_setup.sh
+
+    - name: Install Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: Clone the Sparta test app repository
+      ansible.builtin.git:
+        repo: https://github.com/charleybolton/sparta-first-app.git
+        dest: /home/ubuntu/repo
+        version: main
+      become: false
+
+    - name: Navigate to App folder and install Node.js dependencies
+      ansible.builtin.npm:
+        path: /home/ubuntu/repo/app
+      become: false
+
+    - name: Start Node.js app using npm
+      ansible.builtin.shell: npm start
+      args:
+        chdir: ~/repo/app
+      become: false
+
+##########################################
+# EXPLANATION OF PLAYBOOK
+# ---                                         -> Marks the start of the YAML document.
+#
+# - name: install app dependencies and run app -> Names the play (for clarity in output/logs).
+# hosts: web                                  -> Targets all hosts in the [web] group from the inventory file.
+#
+# gather_facts: true                          -> Collects system information (OS, network, etc.) before running tasks.
+#
+# become: true                                -> Runs all tasks with sudo privileges (needed for installs).
+#
+# tasks:                                      -> Begins the list of actions Ansible will perform.
+#
+#   - name: update apt cache                  -> Refreshes the package index (like "sudo apt update").
+#     ansible.builtin.apt:                    -> Uses the built-in apt module.
+#       update_cache: yes                     -> Updates list of available packages.
+#
+#   - name: upgrade all packages              -> Upgrades all installed packages to latest versions.
+#     ansible.builtin.apt:                    -> Uses the apt module.
+#       upgrade: dist                         -> Performs a distribution upgrade (like "apt dist-upgrade").
+#
+#   - name: install nginx                     -> Installs the Nginx web server.
+#     ansible.builtin.apt:                    -> Uses apt module for package management.
+#       pkg: nginx                            -> Specifies the package name.
+#       state: present                        -> Ensures Nginx is installed (idempotent).
+#
+#   - name: Download NodeSource setup script  -> Downloads Node.js setup script for v20.x.
+#     ansible.builtin.get_url:                -> Downloads a file via HTTP(S).
+#       url: https://deb.nodesource.com/setup_20.x  -> The source URL for the setup script.
+#       dest: /tmp/nodesource_setup.sh        -> Save path on target node.
+#       mode: '0755'                          -> Makes the file executable.
+#
+#   - name: Run NodeSource setup script       -> Executes the setup script to add Node.js repository.
+#     ansible.builtin.shell: bash /tmp/nodesource_setup.sh -> Runs using bash shell.
+#
+#   - name: Install Node.js                   -> Installs Node.js package.
+#     ansible.builtin.apt:                    -> Uses apt module.
+#       name: nodejs                          -> Specifies Node.js package.
+#       state: present                        -> Ensures it’s installed (idempotent).
+#       update_cache: yes                     -> Updates apt cache again just in case.
+#
+#   - name: Clone the Sparta test app repo    -> Clones GitHub repository to target host.
+#     ansible.builtin.git:                    -> Uses git module.
+#       repo: https://github.com/charleybolton/sparta-first-app.git -> The repo URL.
+#       dest: /home/ubuntu/repo               -> Target directory for cloned repo.
+#       version: main                         -> Checks out the main branch.
+#     become: false                           -> Runs as normal user (not sudo) to avoid permission issues.
+#
+#   - name: Install Node.js dependencies      -> Installs dependencies from package.json.
+#     ansible.builtin.npm:                    -> Uses npm module.
+#       path: /home/ubuntu/repo/app           -> Path to folder containing package.json.
+#     become: false                           -> Runs as normal user.
+#
+#   - name: Start Node.js app using npm        -> Starts the app in the foreground (blocks terminal until stopped).
+#     ansible.builtin.shell: npm start         -> Runs “npm start” directly — this launches the Node.js app.
+#     args:                                   -> Provides extra task parameters.
+#       chdir: ~/repo/app                     -> Changes into the app directory before running the command.
+#     become: false                           -> Runs as a normal user (not root).
+##########################################
+

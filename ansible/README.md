@@ -21,9 +21,14 @@
   - [🧾 Creating and Running a Playbook](#-creating-and-running-a-playbook)
     - [Testing with Ad Hoc Commands](#testing-with-ad-hoc-commands)
     - [General Structure of a Playbook](#general-structure-of-a-playbook)
+  - [🧑‍💻 Deploying the App Using a Playbook](#-deploying-the-app-using-a-playbook)
     - [Difference Between “Run App” and “Run App with PM2” Playbooks](#difference-between-run-app-and-run-app-with-pm2-playbooks)
-    - [“prov-app-with-npm-start.yml”](#prov-app-with-npm-startyml)
-    - ["prov-app-with-pm2.yml"](#prov-app-with-pm2yml)
+    - [Why Both Playbooks Are Still Idempotent (Even with Shell Commands)](#why-both-playbooks-are-still-idempotent-even-with-shell-commands)
+    - [Why the Playbook Order Differs from the Bash Script](#why-the-playbook-order-differs-from-the-bash-script)
+  - [💾 Deploying the App Using a DB](#-deploying-the-app-using-a-db)
+    - [Pre-Testing the Database Before Connecting](#pre-testing-the-database-before-connecting)
+    - [Why the Database Needs Manual Seeding in the Playbook (vs. Automatic in Bash)](#why-the-database-needs-manual-seeding-in-the-playbook-vs-automatic-in-bash)
+  - [🪄 Master Playbooks](#-master-playbooks)
 
 ## ❓ What is Ansible
 - A configuration management tool  
@@ -318,8 +323,6 @@ This simply means the service does not exist on the target node.
 
 ### General Structure of a Playbook
 
----
-
 ```bash
 - name: Name of the play (what this play does)
   hosts: target_hosts_group      # e.g. web, db, all
@@ -354,72 +357,183 @@ This simply means the service does not exist on the target node.
         option: value
 ```
 
+**name:**  
+A short, descriptive title explaining what the play does. Helps identify the play in Ansible’s output.
+
+**hosts:**  
+Specifies which group(s) or host(s) the play will run on, as defined in your inventory file. Examples: `web`, `db`, or `all`.
+
+**gather_facts:**  
+Determines whether Ansible should collect system information (facts) about the target hosts before running tasks. Useful when tasks depend on system details like OS version or network interfaces.
+
+**become:**  
+Indicates if privilege escalation (e.g., `sudo`) should be used for the tasks in this play. Set to `true` when tasks require elevated permissions.
+
+**vars:**  
+Defines variables that can be reused throughout the play. Useful for storing configuration values, file paths, or credentials.
+
+**pre_tasks:**  
+Tasks that run *before* the main task list. Commonly used to prepare the environment — for example, updating package caches or validating preconditions.
+
+**tasks:**  
+The main set of actions that Ansible will execute on the target hosts. Each task uses a module (e.g., `copy`, `service`, `yum`) and runs in order from top to bottom.
+
+**handlers:**  
+Special tasks that only run when “notified” by another task. Typically used for actions that should happen after changes — such as restarting a service when a configuration file is updated.
+
+**post_tasks:**  
+Tasks that run *after* all main tasks and handlers have completed. Commonly used for cleanup, validation, or reporting steps after the main configuration work is done.
+
+## 🧑‍💻 Deploying the App Using a Playbook
+
 ### Difference Between “Run App” and “Run App with PM2” Playbooks
 
-Both playbooks automate the installation of all necessary application dependencies and the deployment of the Node.js app on the **web server**.  
-However, they differ in **how the application process is managed and kept running**.
+Both playbooks automate installing dependencies and deploying the Node.js application on the web server, but they differ in how the application process runs and is managed.
 
-### “prov-app-with-npm-start.yml”
-- Starts the Node.js app **manually in the background** using:
+**“prov-app-with-npm-start.yml”**
+
+- Starts the Node.js app in the foreground using:
   
 ```bash
-nohup npm start > app.log 2>&1 &
+  npm start
 ```
+This command runs the app directly inside the SSH session.  
 
-- **Nohup** (“no hang-up”) prevents the process from stopping when the SSH session ends.  
-- The output is redirected to a log file (`app.log`) and the process runs in the background.  
-- ❗ However:  
-  - The process is **not automatically restarted** if the server reboots or the app crashes.  
-  - Management (checking, stopping, restarting) must be done manually.  
+❗ However:  
+- The process will hang (block) Ansible until you stop it manually.  
+- If the SSH session ends, the app will stop too.  
+- It doesn’t automatically restart after reboots or crashes.  
 
-### "prov-app-with-pm2.yml"
+➡️ This is why PM2 is introduced in the next stage — to properly manage the process.
 
-- Uses **PM2**, a Node.js process manager, to control and monitor the app.  
+**"prov-app-with-pm2.yml"**
+
+- Uses PM2, a Node.js process manager, to keep the app running continuously in the background.  
 - PM2 provides:  
   - Automatic restarts if the app crashes.  
-  - Startup configuration to **run automatically on reboot**.  
+  - Startup configuration to launch on reboot.  
+  - Centralised process management (start, stop, restart, logs).  
+- This makes it far more reliable and production-ready compared to `npm start`.
 
+### Why Both Playbooks Are Still Idempotent (Even with Shell Commands)
 
+Both **`prov-app-with-npm-start.yml`** and **`prov-app-with-pm2.yml`** are designed to be *idempotent*, meaning they can be safely re-run multiple times without causing unwanted side effects.
 
+Even though each contains a `shell` command, they remain **functionally idempotent** for these reasons:
 
+1. **All system setup tasks use idempotent Ansible modules**  
+   - Modules like `apt`, `git`, `npm`, and `get_url` automatically check current state before acting.  
+   - For example, if Node.js or Nginx is already installed, the tasks are skipped.
 
+2. **The shell commands are non-destructive**  
+   - In the npm version, `npm start` simply runs the app again — it doesn’t overwrite files or system state.  
+   - In the PM2 version, the command `pm2 start app.js --name app || pm2 restart app` ensures the app either starts or restarts cleanly without duplication.
 
+3. **Resulting state is consistent**  
+   - After each run, the same desired outcome is achieved:
+     - App dependencies installed  
+     - Repo cloned  
+     - App running (via npm or PM2)  
+   - So even if Ansible cannot *detect* the change, the system ends up in the same working state.
 
+While `shell` commands aren’t inherently idempotent in Ansible terms, the way these playbooks are written makes their end result idempotent in behaviour — meaning repeated runs will not break or duplicate your app setup.
 
+### Why the Playbook Order Differs from the Bash Script
 
+Ansible and Bash operate differently in how they execute instructions.
 
+A Bash script runs commands in a fixed sequence, while an Ansible playbook defines the *desired end state* of a system.
 
+This difference affects how tasks are ordered.
 
+| Aspect | **Bash Script** | **Ansible Playbook** |
+|--------|------------------|----------------------|
+| **Execution Type** | Procedural — executes commands line-by-line in exact order | Declarative — ensures each component reaches a defined state |
+| **Dependency Handling** | Order must be manually managed (e.g. install before use) | Modules handle dependencies internally (e.g. `apt` updates cache before installing) |
+| **System Setup vs. App Setup** | Often combined together | Clearly separated: system configuration first, then application setup |
+| **Error Recovery** | If one command fails, execution stops unless handled manually | Ansible halts on failure and reports the failed task |
+| **Re-runs (Idempotency)** | Re-running repeats every command | Re-running only changes what is out of sync with the defined state |
 
+In a Bash script, repository cloning typically occurs before installing tools like PM2 because the script executes sequentially.  
+In an Ansible playbook, Node.js and PM2 are installed first so that subsequent tasks such as repository cloning and dependency installation can rely on a fully prepared environment.  
 
+This approach follows standard **configuration management best practices**, producing a more **modular, maintainable, and predictable** deployment process.
 
+## 💾 Deploying the App Using a DB
 
-<!-- TASK [Install MongoDB 7.0] ************************************************************************* fatal: [db-instance]: FAILED! => {"cache_update_time": 1759757374, "cache_updated": false, "changed": false, "msg": "'/usr/bin/apt-get -y -o \"Dpkg::Options::=--force-confdef\" -o \"Dpkg::Options::=--force-confold\" install 'mongodb-org=7.0.6'' failed: E: Packages were downgraded and -y was used without --allow-downgrades.\n", "rc": 100, "stderr": "E: Packages were downgraded and -y was used without --allow-downgrades.\n", "stderr_lines": ["E: Packages were downgraded and -y was used without --allow-downgrades."], "stdout": "Reading package lists...\nBuilding dependency tree...\nReading state information...\nThe following packages will be DOWNGRADED:\n mongodb-org\n0 upgraded, 0 newly installed, 1 downgraded, 0 to remove and 0 not upgraded.\n", "stdout_lines": ["Reading package lists...", "Building dependency tree...", "Reading state information...", "The following packages will be DOWNGRADED:", " mongodb-org", "0 upgraded, 0 newly installed, 1 downgraded, 0 to remove and 0 not upgraded."]}
+### Pre-Testing the Database Before Connecting
 
+Before linking the web app to MongoDB using the DB_HOST variable, it’s best practice to verify that MongoDB is running correctly and accessible.
 
-✅ Option 1 (Recommended — simplest)
+1️⃣ Check that MongoDB is active
 
-👉 Just install the latest MongoDB 7.0 instead of pinning a version.
+You can do this using ad hoc Ansible commands:
 
-Change this task:
+`ansible db -a "sudo systemctl status mongod" -u ubuntu`
 
-- name: Install MongoDB 7.0
-  ansible.builtin.apt:
-    name: mongodb-org=7.0.6
-    state: present
+This confirms the MongoDB service is installed, enabled, and running. If MongoDB isn’t active, the output will include a failure message like inactive (dead) or failed.
 
+2️⃣ Check that the bind IP was updated
 
-to:
+`ansible db -a "grep bindIp /etc/mongod.conf" -u ubuntu`
 
-- name: Install MongoDB 7.0
-  ansible.builtin.apt:
-    name: mongodb-org
-    state: present
+This confirms the database is configured to accept remote connections:
 
+Expected output:
 
-That tells Ansible to install or update MongoDB to the latest available 7.0 version, avoiding version conflicts. -->
+` bindIp: 0.0.0.0`
 
+If it still shows 127.0.0.1, remote connections from your web server won’t work.
 
+Once both tests pass, you can safely proceed to connect the web app to the db.
 
+### Why the Database Needs Manual Seeding in the Playbook (vs. Automatic in Bash)
 
+When deploying with Bash, the MongoDB seeding process appeared to happen automatically — whereas in the Ansible version, the database had to be seeded explicitly with a task:
 
+```yaml
+- name: seed MongoDB using app's seed script
+  ansible.builtin.shell: node seeds/seed.js
+```
+This difference arises from how each tool executes commands and manages environments.
+
+In the Bash Script:
+
+- The Bash script executes **line-by-line in a single shell session**.  
+- Commands such as `npm install` and `pm2 start app.js` run sequentially **within the same environment**.  
+- During the same session, the app detects an empty MongoDB instance and **triggers its internal seed script automatically**.  
+- The environment variable `DB_HOST` is already set globally (`export DB_HOST="mongodb://<public_ip>:27017/posts"`), so the Node.js application knows the database location immediately.
+
+**Result:**  
+When the application starts, it connects to MongoDB, finds no data, and seeds the database automatically — creating the appearance of “auto-seeding.”
+
+In the Ansible Playbook:
+
+- Each Ansible task executes in a **separate, isolated shell**, so environment variables do not persist between tasks.  
+- The seeding step does not run automatically because:
+  - The `DB_HOST` variable only exists during the specific task that defines it.  
+  - PM2 starts the application in the background, preventing Ansible from detecting internal processes.  
+- As a result, the MongoDB instance is deployed empty and must be populated manually through an explicit seeding step.
+
+Adding a seeding task in Ansible makes the process **deterministic and idempotent**, ensuring that the database is consistently populated during deployment.
+
+## 🪄 Master Playbooks
+
+A master-playbook.yml is used to orchestrate provisioning across multiple hosts.
+This approach separates concerns and maintains modularity by delegating configuration to smaller, task-specific playbooks.
+
+prov-db.yml provisions and configures MongoDB on the database server.
+
+prov-app.yml provisions the Node.js application and Nginx on the web server.
+
+The master playbook executes the component playbooks sequentially to ensure proper dependency order.
+Execution halts automatically if any playbook fails, preventing subsequent stages from running with incomplete configurations.
+
+Do playbooks run simultaneously or one after another?
+- Playbooks in a master playbook run sequentially, not in parallel.
+- When multiple playbooks are included (e.g., prov-db.yml then prov-app.yml), Ansible completes the first before starting the next.
+
+If a playbook fails, what happens to the others?
+- If one playbook fails, Ansible stops execution and does not run the remaining playbooks.
+- This behaviour ensures that dependent stages do not proceed when previous configurations are incomplete or unsuccessful.
+- The behaviour can be overridden with options such as ignore_errors: true or conditional includes, although this is not recommended for provisioning workflows.

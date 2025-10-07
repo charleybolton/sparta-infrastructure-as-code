@@ -3,6 +3,10 @@
 - [🐛 Debug Log – Fixing EC2 / Security Group VPC Mismatch](#-debug-log--fixing-ec2--security-group-vpc-mismatch)
   - [1️⃣ Fixing EC2 / Security Group VPC Mismatch](#1️⃣-fixing-ec2--security-group-vpc-mismatch)
   - [2️⃣ Fixing SSH Key Permission Error](#2️⃣-fixing-ssh-key-permission-error)
+  - [3️⃣ Fixing MongoDB Downgrade Error During Ansible Install](#3️⃣-fixing-mongodb-downgrade-error-during-ansible-install)
+  - [4️⃣ Fixing Missing `DB_HOST` Environment Variable in PM2](#4️⃣-fixing-missing-db_host-environment-variable-in-pm2)
+  - [5️⃣ Fixing Missing Post Content (Unseeded MongoDB)](#5️⃣-fixing-missing-post-content-unseeded-mongodb)
+  - [6️⃣ Cleaning Up Exports with Ansible Environment Variables](#6️⃣-cleaning-up-exports-with-ansible-environment-variables)
 
 ## 1️⃣ Fixing EC2 / Security Group VPC Mismatch
 
@@ -107,3 +111,169 @@ ls -l /home/ubuntu/.ssh/tech511-charley-aws.pem
 
 - SSH and Ansible can now connect successfully using the .pem key.
 - The “Permission denied (publickey)” error is resolved.
+
+## 3️⃣ Fixing MongoDB Downgrade Error During Ansible Install
+
+**Error Message**
+
+```bash
+TASK [Install MongoDB 7.0] *************************************************************************
+fatal: [db-instance]: FAILED! => {"msg": "'/usr/bin/apt-get -y ... install 'mongodb-org=7.0.6'' failed: 
+E: Packages were downgraded and -y was used without --allow-downgrades.\n"}
+```
+
+**Diagnosis**
+Ansible attempted to install a specific MongoDB version (7.0.6).  
+The target EC2 instance already had a newer or conflicting version of `mongodb-org` installed.  
+APT blocked the operation because downgrading without the `--allow-downgrades` flag is unsafe.
+
+**Cause**
+The task explicitly pinned a version number (`mongodb-org=7.0.6`),  
+which can cause version mismatches if the repository already provides a newer build.  
+When Ansible runs `apt-get install` with `-y`, APT refuses to downgrade without extra flags.
+
+**Fix**
+- Allow APT to install the latest available MongoDB 7.0 release by removing the version pin.
+
+Change this task:
+
+```yaml
+- name: Install MongoDB 7.0
+  ansible.builtin.apt:
+    name: mongodb-org=7.0.6
+    state: present
+```
+to
+
+```yaml
+- name: Install MongoDB 7.0
+  ansible.builtin.apt:
+    name: mongodb-org
+    state: present
+```
+
+**Explanation**
+- This tells Ansible to install the **latest version available** from the MongoDB 7.0 repository.  
+- Prevents downgrade conflicts and ensures smooth upgrades in future runs.  
+- The task remains **idempotent** — Ansible won’t reinstall MongoDB unless a newer version is available.
+
+✅ **Result**
+- Ansible completed successfully without downgrade errors.  
+- MongoDB installed or updated to the correct 7.0 release.  
+- Playbook now runs cleanly across new and existing EC2 instances.
+
+## 4️⃣ Fixing Missing `DB_HOST` Environment Variable in PM2
+
+**Error Message**
+
+```yaml
+Use --update-env to update environment variables
+[PM2][ERROR] Script already launched, add -f option to force re-execution
+```
+
+**Diagnosis**
+The Node.js app runs via PM2, but cannot connect to MongoDB.  
+PM2 does not automatically retain temporary environment variables set in shell sessions.  
+The message above indicates the `DB_HOST` variable was not updated in PM2’s stored environment.
+
+**Cause**
+The Ansible task used `export DB_HOST=...` before starting the app.  
+This `export` only exists for that one shell process and disappears after the task finishes.  
+PM2 continued running the app with its previous (empty) environment, so the app couldn’t find MongoDB.
+
+**Fix**
+Replace the original PM2 start command with the following in your Ansible playbook:
+
+```yaml
+- name: start app with PM2 using DB_HOST environment variable
+  ansible.builtin.shell: |
+    export DB_HOST="mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
+    pm2 start app.js --name app -f --update-env
+  args:
+    chdir: /home/ubuntu/repo/app
+  become: false
+```
+
+- `-f` forces PM2 to restart the app even if it’s already running.  
+- `--update-env` updates the environment variables stored by PM2.  
+- The `export` ensures `DB_HOST` is available when PM2 restarts the process.  
+
+**Verification**
+Run this command on the web server:
+
+✅ **Result**
+- PM2 now correctly loads the DB_HOST variable.
+- The app connects to MongoDB successfully, and the posts page loads as expected.
+  
+## 5️⃣ Fixing Missing Post Content (Unseeded MongoDB)
+
+**Error Message**
+No explicit error — the “Posts” page loaded but only displayed the header with no post content.
+
+**Diagnosis**
+- The app was connecting to MongoDB successfully (no crash or 500 error).  
+- However, the database contained **no documents** in the `posts` collection.  
+- The original bash setup automatically seeded data, but the Ansible deployment did not.
+
+**Cause**
+- The MongoDB instance was freshly provisioned with no seed data.  
+- The seeding step (`node seeds/seed.js`) was never executed during the Ansible run.  
+- As a result, the app rendered an empty list.
+
+**Fix**
+Added a new task to the web play to run the seeding script automatically:
+
+```yaml
+- name: seed MongoDB using app's seed script
+  ansible.builtin.shell: |
+    export DB_HOST="mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
+    node seeds/seed.js
+  args:
+    chdir: /home/ubuntu/repo/app
+  become: false
+```
+
+**Verification**
+After redeploying, the “Posts” page now displays seeded posts instead of just the header.
+
+✅ **Result**
+- MongoDB is automatically populated during deployment.  
+- The app displays full post content on page load.
+
+## 6️⃣ Cleaning Up Exports with Ansible Environment Variables
+
+**Observation**
+Originally, both the PM2 and seed tasks exported the `DB_HOST` variable manually using `export DB_HOST=...` in each shell block.
+
+**Diagnosis**
+- Each `shell` task runs in its own environment, so exports don’t persist between tasks.  
+- Repeating `export` is functional but verbose and not best practice.
+
+**Fix**
+Refactored both tasks to use the `environment:` key instead of inline exports:
+
+```yaml
+- name: start app with PM2 using DB_HOST environment variable
+  ansible.builtin.shell: pm2 start app.js --name app -f --update-env
+  args:
+    chdir: /home/ubuntu/repo/app
+  environment:
+    DB_HOST: "mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
+  become: false
+
+- name: seed MongoDB using app's seed script
+  ansible.builtin.shell: node seeds/seed.js
+  args:
+    chdir: /home/ubuntu/repo/app
+  environment:
+    DB_HOST: "mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
+  become: false
+```
+
+**Verification**
+- Both tasks successfully connect to the MongoDB instance.  
+- The playbook is cleaner, more readable, and aligns with Ansible best practices.
+
+✅ **Result**
+- Environment variables are handled properly without redundant exports.  
+- Deployment remains fully automated and idempotent.

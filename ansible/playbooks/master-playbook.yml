@@ -1,0 +1,7 @@
+---
+
+- name: Run database provisioning
+  import_playbook: prov_db.yml
+
+- name: Run application provisioning
+  import_playbook: prov_app_with_pm2_reverse_proxy.yml

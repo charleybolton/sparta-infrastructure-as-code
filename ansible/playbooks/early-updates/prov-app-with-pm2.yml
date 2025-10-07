@@ -1,0 +1,184 @@
+# ✅ Idempotency: ~98%
+# All setup and configuration tasks are idempotent. 
+# The only exceptions are:
+#   - Backup task (creates a new timestamped file each run)
+#   - Nginx restart (triggered only via handler when config changes)
+
+---
+
+- name: install app dependencies and run app with pm2
+  hosts: web
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Download NodeSource setup script for Node.js 20.x
+      ansible.builtin.get_url:
+        url: https://deb.nodesource.com/setup_20.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
+
+    - name: Run NodeSource setup script
+      ansible.builtin.shell: bash /tmp/nodesource_setup.sh
+
+    - name: Install Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: Install PM2 globally
+      community.general.npm:
+        name: pm2
+        global: yes
+
+    - name: Clone the Sparta test app repository
+      ansible.builtin.git:
+        repo: https://github.com/charleybolton/sparta-first-app.git
+        dest: /home/ubuntu/repo
+        version: main
+      become: false
+
+    - name: Install Node.js dependencies
+      ansible.builtin.npm:
+        path: /home/ubuntu/repo/app
+      become: false
+
+    - name: Start app with PM2
+      ansible.builtin.shell: pm2 start app.js --name app || pm2 restart app
+      args:
+        chdir: /home/ubuntu/repo/app
+      become: false
+
+    - name: Back up Nginx default config
+      ansible.builtin.copy:
+        src: /etc/nginx/sites-available/default
+        dest: "/etc/nginx/sites-available/default.bak-{{ ansible_date_time.iso8601_basic }}"
+        remote_src: true
+      ignore_errors: true
+
+    - name: Update Nginx config to proxy to app on port 3000
+      ansible.builtin.replace:
+        path: /etc/nginx/sites-available/default
+        regexp: 'try_files \$uri \$uri/ =404;'
+        replace: 'proxy_pass http://127.0.0.1:3000/;'
+      notify: Restart Nginx
+    - name: Test Nginx configuration
+      ansible.builtin.command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+  handlers:
+    - name: Restart Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+
+##########################################
+
+# ---                                         -> Marks the start of the YAML document.
+#
+# - name: install app dependencies and run app with pm2 -> Names the play for readability in logs/output.
+# hosts: web                                  -> Targets all hosts listed under the [web] group in inventory.
+#
+# gather_facts: true                          -> Gathers system information (OS, network, memory, etc.) before tasks.
+#
+# become: true                                -> Runs tasks with elevated (sudo) privileges, required for installs.
+#
+# tasks:                                      -> Begins the list of actions Ansible will perform.
+#
+#   - name: update apt cache                  -> Refreshes the package index (like "sudo apt update").
+#     ansible.builtin.apt:                    -> Uses Ansible’s apt module for Debian/Ubuntu systems.
+#       update_cache: yes                     -> Ensures the latest package lists are available.
+#
+#   - name: upgrade all packages              -> Upgrades all installed system packages.
+#     ansible.builtin.apt:                    -> Uses apt module again.
+#       upgrade: dist                         -> Performs a distribution upgrade ("sudo apt dist-upgrade").
+#
+#   - name: install nginx                     -> Installs Nginx web server.
+#     ansible.builtin.apt:                    -> Manages packages via apt.
+#       name: nginx                           -> Specifies the package name.
+#       state: present                        -> Ensures Nginx is installed (idempotent behaviour).
+#
+#   - name: Download NodeSource setup script  -> Downloads Node.js v20 setup script from NodeSource.
+#     ansible.builtin.get_url:                -> Downloads files via HTTP(S).
+#       url: https://deb.nodesource.com/setup_20.x  -> Source URL for the setup script.
+#       dest: /tmp/nodesource_setup.sh        -> Saves file under /tmp directory.
+#       mode: '0755'                          -> Makes file executable.
+#
+#   - name: Run NodeSource setup script       -> Executes the Node.js setup script.
+#     ansible.builtin.shell: bash /tmp/nodesource_setup.sh -> Runs script to configure Node.js repo.
+#
+#   - name: Install Node.js                   -> Installs Node.js runtime.
+#     ansible.builtin.apt:                    -> Uses apt module for installation.
+#       name: nodejs                          -> Package name.
+#       state: present                        -> Ensures Node.js is installed (no duplicates).
+#       update_cache: yes                     -> Updates cache again after adding NodeSource repo.
+#
+#   - name: Install PM2 globally              -> Installs PM2 process manager globally.
+#     community.general.npm:                  -> Uses npm module from community.general collection.
+#       name: pm2                             -> The npm package name.
+#       global: yes                           -> Installs PM2 globally (accessible system-wide).
+#
+#   - name: Clone the Sparta test app repo    -> Clones your GitHub repository.
+#     ansible.builtin.git:                    -> Uses git module to clone repo.
+#       repo: https://github.com/charleybolton/sparta-first-app.git -> Repo URL.
+#       dest: /home/ubuntu/repo               -> Destination directory on target.
+#       version: main                         -> Checks out main branch.
+#     become: false                           -> Runs as normal user to avoid permission issues.
+#
+#   - name: Install Node.js dependencies      -> Installs dependencies listed in package.json.
+#     ansible.builtin.npm:                    -> Uses npm module to install packages.
+#       path: /home/ubuntu/repo/app           -> Directory containing package.json file.
+#     become: false                           -> Runs without sudo (safe for npm installs).
+#
+#   - name: Start app with PM2                -> Launches or restarts app under PM2 process manager.
+#     ansible.builtin.shell: pm2 start app.js --name app || pm2 restart app
+#                                              -> Starts app if not running, restarts if it exists.
+#     args:                                   -> Additional arguments for this task.
+#       chdir: /home/ubuntu/repo/app          -> Changes into app directory before running command.
+#     become: false                           -> Runs as normal user.
+##########################################
+
+##########################################
+# EXPLANATION OF PLAYBOOK (REVERSE PROXY)
+#
+#   - name: Back up Nginx default config     -> Creates a timestamped backup of the default Nginx config.
+#     ansible.builtin.copy:                  -> Uses copy module to duplicate the existing file on the remote host.
+#       src: /etc/nginx/sites-available/default -> Source file path to back up.
+#       dest: "/etc/nginx/sites-available/default.bak-{{ ansible_date_time.iso8601_basic }}" -> Backup file with timestamp.
+#       remote_src: true                     -> Tells Ansible the file already exists on the remote host.
+#     ignore_errors: true                    -> Continues even if the backup file already exists or source file missing.
+#
+#   - name: Update Nginx config to proxy to app on port 3000 -> Modifies the Nginx config to forward port 80 traffic to the Node app on port 3000.
+#     ansible.builtin.replace:               -> Uses replace module to swap one line in the file.
+#       path: /etc/nginx/sites-available/default -> Path to the config file.
+#       regexp: 'try_files \$uri \$uri/ =404;' -> The text pattern to search for.
+#       replace: 'proxy_pass http://127.0.0.1:3000/;' -> The new line to insert.
+#     notify: Restart Nginx                  -> Triggers the handler only if this task changes the file.
+#
+#   - name: Test Nginx configuration         -> Validates the Nginx configuration file for syntax errors.
+#     ansible.builtin.command: nginx -t      -> Runs "nginx -t" to check syntax before restart.
+#     register: nginx_test                   -> Saves the command output for logging/debugging.
+#     changed_when: false                    -> Ensures task reports "ok" (not "changed") since it’s read-only.
+#
+# handlers:                                  -> Special tasks that only run when notified.
+#
+#   - name: Restart Nginx                    -> Restarts Nginx service to apply new configuration.
+#     ansible.builtin.service:               -> Uses service module to manage systemd services.
+#       name: nginx                          -> Specifies the service to manage.
+#       state: restarted                     -> Restarts only when notified (more idempotent).
+##########################################

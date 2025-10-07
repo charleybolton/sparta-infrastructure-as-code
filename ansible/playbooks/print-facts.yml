@@ -5,9 +5,9 @@
   gather_facts: true
   
   tasks:
-  - name: print facts
-    ansible.builtin.debug:
-      var: ansible_facts
+    - name: print facts
+      ansible.builtin.debug:
+        var: ansible_facts
 
 ##########################################
 # EXPLANATION OF PLAYBOOK

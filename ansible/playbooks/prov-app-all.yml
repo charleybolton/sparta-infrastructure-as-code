@@ -1,0 +1,291 @@
+# ✅ Idempotency: ~98%
+# All tasks are idempotent except the "seed MongoDB" and "pm2 start" steps (which re-run the app/seed script each time).
+# These are safe to re-run but not strictly idempotent.
+
+---
+
+- name: Provision and configure MongoDB on DB server
+  hosts: db
+  gather_facts: yes
+  become: true
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: add GPG key
+      ansible.builtin.apt_key:
+        url: https://www.mongodb.org/static/pgp/server-7.0.asc
+        state: present
+
+    - name: add MongoDB repository
+      ansible.builtin.apt_repository:
+        repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/7.0 multiverse"
+        state: present
+        update_cache: yes
+
+    - name: install MongoDB 7.0
+      ansible.builtin.apt:
+        name: mongodb-org
+        state: present
+
+    - name: allow remote connections (bindIp 0.0.0.0)
+      ansible.builtin.lineinfile:
+        path: /etc/mongod.conf
+        regexp: '^ *bindIp:'
+        line: '  bindIp: 0.0.0.0'
+        backup: yes
+
+    - name: enable and restart MongoDB service
+      ansible.builtin.service:
+        name: mongod
+        state: restarted
+        enabled: yes
+
+- name: Provision and run Node.js app on web server
+  hosts: web
+  gather_facts: true
+  become: true
+  
+  vars:
+    db_host: "mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: download NodeSource setup script for Node.js 20.x
+      ansible.builtin.get_url:
+        url: https://deb.nodesource.com/setup_20.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
+
+    - name: run NodeSource setup script
+      ansible.builtin.shell: bash /tmp/nodesource_setup.sh
+
+    - name: install Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: install PM2 globally
+      community.general.npm:
+        name: pm2
+        global: yes
+
+    - name: clone the Sparta test app repository
+      ansible.builtin.git:
+        repo: https://github.com/charleybolton/sparta-first-app.git
+        dest: /home/ubuntu/repo
+        version: main
+      become: false
+
+    - name: install Node.js dependencies
+      ansible.builtin.npm:
+        path: /home/ubuntu/repo/app
+      become: false
+
+    - name: start app with PM2 using DB_HOST environment variable
+      ansible.builtin.shell: pm2 start app.js --name app -f --update-env
+      args:
+        chdir: /home/ubuntu/repo/app
+      environment:
+        DB_HOST: "{{ db_host }}"
+      become: false
+
+    - name: seed MongoDB using app's seed script
+      ansible.builtin.shell: node seeds/seed.js
+      args:
+        chdir: /home/ubuntu/repo/app
+      environment:
+        DB_HOST: "{{ db_host }}"
+      become: false
+
+    - name: back up Nginx default config
+      ansible.builtin.copy:
+        src: /etc/nginx/sites-available/default
+        dest: "/etc/nginx/sites-available/default.bak-{{ ansible_date_time.iso8601_basic }}"
+        remote_src: true
+      ignore_errors: true
+
+    - name: update Nginx config to proxy to app on port 3000
+      ansible.builtin.replace:
+        path: /etc/nginx/sites-available/default
+        regexp: 'try_files \$uri \$uri/ =404;'
+        replace: 'proxy_pass http://127.0.0.1:3000/;'
+      notify: restart nginx
+
+    - name: test Nginx configuration
+      ansible.builtin.command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+  handlers:
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+
+##########################################
+# EXPLANATION OF PLAYBOOK
+# ---                                         -> Marks the start of the YAML document.
+#
+# - name: Provision and configure MongoDB on DB server -> Names this play for clarity (sets up MongoDB).
+# hosts: db                                   -> Runs the play on all hosts in the [db] group from the inventory.
+# gather_facts: yes                           -> Gathers system info before executing tasks.
+# become: true                                -> Executes tasks with sudo privileges (needed for system-level operations).
+#
+# tasks:                                      -> Defines the ordered list of tasks Ansible will perform.
+#
+#   - name: update apt cache                  -> Updates the local package index (equivalent to "apt update").
+#     ansible.builtin.apt:                    -> Uses Ansible’s built-in apt module for package management.
+#       update_cache: yes                     -> Ensures package info is up to date.
+#
+#   - name: upgrade all packages              -> Upgrades all installed system packages.
+#     ansible.builtin.apt:                    -> Uses apt module again.
+#       upgrade: dist                         -> Performs a full distribution upgrade (apt dist-upgrade).
+#
+#   - name: add GPG key                       -> Adds MongoDB’s public GPG key to verify package authenticity.
+#     ansible.builtin.apt_key:                -> Module to manage APT GPG keys.
+#       url: https://www.mongodb.org/static/pgp/server-7.0.asc -> URL to MongoDB’s official key.
+#       state: present                        -> Ensures the key exists (idempotent).
+#
+#   - name: add MongoDB repository            -> Adds MongoDB’s official 7.0 repository for Ubuntu.
+#     ansible.builtin.apt_repository:         -> Module to manage software sources.
+#       repo: "deb [arch=amd64,arm64] ..."    -> Repository line, dynamically inserts Ubuntu codename.
+#       state: present                        -> Ensures it’s added once (idempotent).
+#       update_cache: yes                     -> Refreshes apt cache after adding the repo.
+#
+#   - name: install MongoDB 7.0               -> Installs MongoDB package.
+#     ansible.builtin.apt:                    -> Uses apt for installation.
+#       name: mongodb-org                     -> Official MongoDB metapackage.
+#       state: present                        -> Ensures MongoDB is installed.
+#
+#   - name: allow remote connections (bindIp 0.0.0.0) -> Allows MongoDB to accept external connections.
+#     ansible.builtin.lineinfile:             -> Modifies a single line in /etc/mongod.conf.
+#       path: /etc/mongod.conf                -> Target configuration file.
+#       regexp: '^ *bindIp:'                  -> Finds existing bindIp line.
+#       line: '  bindIp: 0.0.0.0'             -> Replaces it with all-address binding.
+#       backup: yes                           -> Saves a backup before editing.
+#
+#   - name: enable and restart MongoDB service -> Ensures MongoDB runs and starts on boot.
+#     ansible.builtin.service:                -> Manages systemd services.
+#       name: mongod                          -> MongoDB’s service name.
+#       state: restarted                      -> Restarts the service (and starts if stopped).
+#       enabled: yes                          -> Enables it to start automatically on boot.
+#
+# ---
+#
+# - name: Provision and run Node.js app on web server -> Names this play (sets up web server + app).
+# hosts: web                                  -> Targets all web servers in the inventory.
+# gather_facts: true                          -> Gathers facts before running tasks.
+# become: true                                -> Runs tasks with sudo privileges.
+#
+# vars:                                       -> Declares variables for use within this play.
+#   db_host: "mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
+#                                              -> Dynamically references the MongoDB host IP and constructs URI.
+#
+# tasks:                                      -> Defines tasks to set up Node.js, PM2, Nginx, and deploy the app.
+#
+#   - name: update apt cache                  -> Refreshes the apt package index.
+#     ansible.builtin.apt:                    -> Uses apt module.
+#       update_cache: yes                     -> Ensures package list is current.
+#
+#   - name: upgrade all packages              -> Updates installed packages to the latest version.
+#     ansible.builtin.apt:                    -> Uses apt module.
+#       upgrade: dist                         -> Performs full upgrade.
+#
+#   - name: install nginx                     -> Installs Nginx web server.
+#     ansible.builtin.apt:                    -> Uses apt for installation.
+#       name: nginx                           -> Specifies package name.
+#       state: present                        -> Ensures it’s installed.
+#
+#   - name: download NodeSource setup script  -> Retrieves Node.js v20 setup script.
+#     ansible.builtin.get_url:                -> Downloads via HTTP(S).
+#       url: https://deb.nodesource.com/setup_20.x -> Script source.
+#       dest: /tmp/nodesource_setup.sh        -> Save location on target.
+#       mode: '0755'                          -> Makes it executable.
+#
+#   - name: run NodeSource setup script       -> Executes NodeSource script to add Node.js repo.
+#     ansible.builtin.shell: bash /tmp/nodesource_setup.sh -> Runs script via bash shell.
+#
+#   - name: install Node.js                   -> Installs Node.js package.
+#     ansible.builtin.apt:                    -> Uses apt module.
+#       name: nodejs                          -> Package name.
+#       state: present                        -> Ensures it’s installed.
+#       update_cache: yes                     -> Refreshes cache if needed.
+#
+#   - name: install PM2 globally              -> Installs PM2 process manager globally.
+#     community.general.npm:                  -> Uses npm module from community collection.
+#       name: pm2                             -> Package name.
+#       global: yes                           -> Installs globally for all users.
+#
+#   - name: clone the Sparta test app repo    -> Clones the GitHub repo.
+#     ansible.builtin.git:                    -> Uses git module.
+#       repo: https://github.com/charleybolton/sparta-first-app.git -> Repository URL.
+#       dest: /home/ubuntu/repo               -> Target directory for clone.
+#       version: main                         -> Branch name.
+#     become: false                           -> Runs as normal user (not root) to avoid permission issues.
+#
+#   - name: install Node.js dependencies      -> Installs required npm packages.
+#     ansible.builtin.npm:                    -> Uses npm module.
+#       path: /home/ubuntu/repo/app           -> Directory containing package.json.
+#     become: false                           -> Runs as ubuntu user.
+#
+#   - name: start app with PM2 using DB_HOST env var -> Runs the Node app with PM2.
+#     ansible.builtin.shell: pm2 start app.js --name app -f --update-env -> Starts app process.
+#     args:                                   -> Provides command options.
+#       chdir: /home/ubuntu/repo/app          -> Changes working directory.
+#     environment:                            -> Injects environment variables into shell.
+#       DB_HOST: "{{ db_host }}"              -> Passes MongoDB connection string.
+#     become: false                           -> Runs as normal user.
+#
+#   - name: seed MongoDB using app's seed script -> Populates MongoDB with initial data.
+#     ansible.builtin.shell: node seeds/seed.js -> Runs Node seed script.
+#     args:                                   -> Defines working directory.
+#       chdir: /home/ubuntu/repo/app          -> Location of seed script.
+#     environment:                            -> Passes MongoDB URI to script.
+#       DB_HOST: "{{ db_host }}"              -> MongoDB connection.
+#     become: false                           -> Runs as normal user.
+#
+#   - name: back up Nginx default config      -> Backs up current Nginx default site config.
+#     ansible.builtin.copy:                   -> Uses copy module.
+#       src: /etc/nginx/sites-available/default -> Source file.
+#       dest: "/etc/nginx/sites-available/default.bak-{{ ansible_date_time.iso8601_basic }}" -> Timestamped backup file.
+#       remote_src: true                      -> Treats src as path on remote host.
+#     ignore_errors: true                     -> Continues playbook even if backup fails.
+#
+#   - name: update Nginx config to proxy app  -> Modifies Nginx config to forward requests to port 3000.
+#     ansible.builtin.replace:                -> Performs regex-based text replacement.
+#       path: /etc/nginx/sites-available/default -> Target config file.
+#       regexp: 'try_files \$uri \$uri/ =404;' -> Pattern to find.
+#       replace: 'proxy_pass http://127.0.0.1:3000/;' -> Replacement line.
+#     notify: restart nginx                   -> Triggers Nginx restart via handler.
+#
+#   - name: test Nginx configuration          -> Validates syntax of updated Nginx config.
+#     ansible.builtin.command: nginx -t       -> Executes nginx config test command.
+#     register: nginx_test                    -> Stores output for reference.
+#     changed_when: false                     -> Marks task as unchanged (does not modify system state).
+#
+# handlers:                                   -> Defines event-driven tasks triggered by “notify”.
+#   - name: restart nginx                     -> Restarts Nginx service when notified.
+#     ansible.builtin.service:                -> Uses systemd service module.
+#       name: nginx                           -> Target service.
+#       state: restarted                      -> Restarts the service.
+##########################################
