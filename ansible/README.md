@@ -31,9 +31,9 @@
     - [**ansible.builtin.command**](#ansiblebuiltincommand)
     - [Why specify `state=present` if modules are already idempotent?](#why-specify-statepresent-if-modules-are-already-idempotent)
   - [🧾 Creating and Running a Playbook](#-creating-and-running-a-playbook)
-    - [Testing with Ad Hoc Commands](#testing-with-ad-hoc-commands)
     - [General Structure of a Playbook](#general-structure-of-a-playbook)
   - [🧑‍💻 Deploying the App Using a Playbook](#-deploying-the-app-using-a-playbook)
+    - [Pre-testing App Status](#pre-testing-app-status)
     - [Difference Between “Run App” and “Run App with PM2” Playbooks](#difference-between-run-app-and-run-app-with-pm2-playbooks)
     - [Why Both Playbooks Are Still Idempotent (Even with Shell Commands)](#why-both-playbooks-are-still-idempotent-even-with-shell-commands)
     - [Why the Playbook Order Differs from the Bash Script](#why-the-playbook-order-differs-from-the-bash-script)
@@ -243,8 +243,6 @@ Example output:
 The `apt` module is shorthand for ansible.builtin.apt (Ansible looks in that namespace by default).
 
 - This approach ensures that Ansible checks the current system state and only performs changes when necessary.
-<br>
-<br>
 
   Example output:
 
@@ -272,8 +270,6 @@ ansible web -m apt -a "upgrade=dist" --become
 `-a "upgrade=dist"` performs a distribution upgrade, updating all packages to the newest version (similar to sudo apt-get dist-upgrade).
 
 `--become` runs the command with superuser privileges.
-<br>
-<br>
 
 Example output:
 
@@ -347,10 +343,6 @@ Example use: runs `nginx -t` to validate the Nginx configuration.
 Modules such as `apt`, `git`, and `service` are idempotent, meaning they only make changes when required.  
 Modules such as `shell` are not idempotent and will re-run commands each time.
 
-
-
-
-
 ### Why specify `state=present` if modules are already idempotent?
 
 - **Modules are idempotent**, but they still require a definition of *the desired state* in order to determine what actions to take.  
@@ -372,27 +364,6 @@ Modules such as `shell` are not idempotent and will re-run commands each time.
 
 - A **playbook** is a YAML file that defines one or more tasks for Ansible to perform on specific hosts.  
 - Anything that can be done with an **ad hoc command** can also be written as a **task** inside a playbook — and vice versa.
-
-### Testing with Ad Hoc Commands
-
-Before creating a playbook, an ad hoc command can be used to check whether a service (like Nginx) is running:
-
-```bash
-ansible web -a "systemctl status nginx" --become
-
-or 
-
-ansible db -a "systemctl status mongod" --become
-```
-
-If Nginx is not installed yet, the output may show:
-
-```bash
-app-instance | FAILED | rc=4 >>
-Unit nginx.service could not be found. non-zero return code
-```
-
-This simply means the service does not exist on the target node.
 
 ### General Structure of a Playbook
 
@@ -458,6 +429,27 @@ Special tasks that only run when “notified” by another task. Typically used 
 Tasks that run *after* all main tasks and handlers have completed. Commonly used for cleanup, validation, or reporting steps after the main configuration work is done.
 
 ## 🧑‍💻 Deploying the App Using a Playbook
+
+### Pre-testing App Status
+
+Before creating a playbook, an ad hoc command can be used to check whether a service (like Nginx) is running:
+
+```bash
+ansible web -a "systemctl status nginx" --become
+
+or 
+
+ansible db -a "systemctl status mongod" --become
+```
+
+If Nginx is not installed yet, the output may show:
+
+```bash
+app-instance | FAILED | rc=4 >>
+Unit nginx.service could not be found. non-zero return code
+```
+
+This simply means the service does not exist on the target node.
 
 ### Difference Between “Run App” and “Run App with PM2” Playbooks
 
