@@ -87,6 +87,15 @@
         name: nginx
         state: restarted
 
+
+
+
+
+
+
+
+
+
 ##########################################
 
 # ---                                         -> Marks the start of the YAML document.

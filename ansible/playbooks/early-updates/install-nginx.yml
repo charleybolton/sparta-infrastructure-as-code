@@ -1,0 +1,18 @@
+---
+
+- name: install nginx
+  hosts: web
+  gather_facts: yes
+  become: true
+
+  tasks:
+    - name: update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+    
+    - name: upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+    
+    - name: install nginx
+      ansible.builtin.apt: pkg=nginx state=present

@@ -1,9 +1,6 @@
-
-# From the Ansible controller, run ad hoc commands to:
-# Check the status of the database to make sure it's running
-# Check the bindIp has been configured
-# To test you have been successful using Ansible to configure your database VM: On the app VM, manually create an environment variable DB_HOST, check it's been created, restart the app
-# Document
+# ✅ Idempotency: ~95%
+# All tasks are idempotent except the "bindIp update" (lineinfile may reinsert if formatting changes) and "restart MongoDB" (always restarts service).
+# Both are safe to re-run but not strictly idempotent.
 
 ---
 
@@ -49,6 +46,15 @@
         name: mongod
         state: restarted
         enabled: yes
+
+
+
+
+
+
+
+
+
 
 ##########################################
 # EXPLANATION OF PLAYBOOK

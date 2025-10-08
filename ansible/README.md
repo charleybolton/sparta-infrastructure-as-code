@@ -17,6 +17,18 @@
     - [View Help Information](#view-help-information)
     - [View the Inventory](#view-the-inventory)
   - [✅ Using Modules](#-using-modules)
+    - [**ansible.builtin.apt**](#ansiblebuiltinapt)
+    - [**ansible.builtin.apt\_key**](#ansiblebuiltinapt_key)
+    - [**ansible.builtin.apt\_repository**](#ansiblebuiltinapt_repository)
+    - [**ansible.builtin.lineinfile**](#ansiblebuiltinlineinfile)
+    - [**ansible.builtin.service**](#ansiblebuiltinservice)
+    - [**ansible.builtin.get\_url**](#ansiblebuiltinget_url)
+    - [**ansible.builtin.shell**](#ansiblebuiltinshell)
+    - [**community.general.npm**](#communitygeneralnpm)
+    - [**ansible.builtin.git**](#ansiblebuiltingit)
+    - [**ansible.builtin.copy**](#ansiblebuiltincopy)
+    - [**ansible.builtin.replace**](#ansiblebuiltinreplace)
+    - [**ansible.builtin.command**](#ansiblebuiltincommand)
     - [Why specify `state=present` if modules are already idempotent?](#why-specify-statepresent-if-modules-are-already-idempotent)
   - [🧾 Creating and Running a Playbook](#-creating-and-running-a-playbook)
     - [Testing with Ad Hoc Commands](#testing-with-ad-hoc-commands)
@@ -278,6 +290,67 @@ ec2-instance | SUCCESS => {
 - Like before, this demonstrates **idempotence** — the command only applies updates when necessary.
 - Since this was run using the `apt` module`, it’s considered an **idempotent ad hoc command**.
 
+### **ansible.builtin.apt**  
+Manages packages on Debian/Ubuntu systems.  
+- `update_cache: yes` runs `apt-get update` to refresh the package list  
+- `upgrade: dist` upgrades all packages to the latest version  
+- `name: <package>` with `state: present` installs a package if not already installed  
+Example use: installing MongoDB, Nginx, and Node.js.
+
+### **ansible.builtin.apt_key**  
+Adds a GPG key so the system trusts packages from a third-party repository.  
+Example use: adds MongoDB’s signing key before installation.
+
+### **ansible.builtin.apt_repository**  
+Adds a new software source (repository) so packages can be installed from it.  
+Example use: adds the official MongoDB repository for Ubuntu.
+
+### **ansible.builtin.lineinfile**  
+Edits a specific line in a text file, replacing it if it matches a given pattern.  
+Example use: changes `bindIp` in `/etc/mongod.conf` to allow MongoDB to listen on all IPs (`0.0.0.0`).
+
+### **ansible.builtin.service**  
+Starts, stops, restarts, or enables a system service.  
+Example use: restarts and enables MongoDB or Nginx to start on boot.
+
+### **ansible.builtin.get_url**  
+Downloads a file from a given URL to a specific location.  
+Example use: downloads the NodeSource setup script for Node.js.
+
+### **ansible.builtin.shell**  
+Runs shell commands on the remote server exactly as they would run in a terminal.  
+Example use: runs the NodeSource setup script, starts PM2, and executes the MongoDB seed script.
+
+### **community.general.npm**  
+Manages Node.js packages using npm.  
+- `global: yes` installs a package globally (e.g. PM2)  
+- `path:` installs dependencies in a project folder  
+Example use: installs PM2 globally and app dependencies locally.
+
+### **ansible.builtin.git**  
+Clones or updates a Git repository on the target machine.  
+Example use: pulls the Sparta test app from GitHub.
+
+### **ansible.builtin.copy**  
+Copies files between the control node and the remote host, or within the same host using `remote_src: true`.  
+Example use: backs up the Nginx configuration before editing it.
+
+### **ansible.builtin.replace**  
+Searches for text matching a pattern in a file and replaces it with new content.  
+Example use: modifies the Nginx configuration to proxy traffic to the Node.js app on port 3000.
+
+### **ansible.builtin.command**  
+Runs a command without using a shell (safer than `shell`), typically for testing or verification.  
+Example use: runs `nginx -t` to validate the Nginx configuration.
+
+✅ Tip:  
+Modules such as `apt`, `git`, and `service` are idempotent, meaning they only make changes when required.  
+Modules such as `shell` are not idempotent and will re-run commands each time.
+
+
+
+
+
 ### Why specify `state=present` if modules are already idempotent?
 
 - **Modules are idempotent**, but they still require a definition of *the desired state* in order to determine what actions to take.  
@@ -537,3 +610,6 @@ If a playbook fails, what happens to the others?
 - If one playbook fails, Ansible stops execution and does not run the remaining playbooks.
 - This behaviour ensures that dependent stages do not proceed when previous configurations are incomplete or unsuccessful.
 - The behaviour can be overridden with options such as ignore_errors: true or conditional includes, although this is not recommended for provisioning workflows.
+
+
+json lock file needed for npm install so cant do a clean install without it

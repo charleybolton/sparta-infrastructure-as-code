@@ -131,6 +131,14 @@
         replace: 'proxy_pass http://127.0.0.1:3000/;'
       notify: restart nginx
 
+  # - name: update Nginx config to proxy to app on port 3000
+  #   ansible.builtin.replace:
+  #     path: /etc/nginx/sites-available/default
+  #     regexp: 'try_files \$uri \$uri/ =404;'
+  #     replace: 'proxy_pass http://127.0.0.1:3000/;'
+  #     backup: yes
+  #   notify: restart nginx
+
     - name: test Nginx configuration
       ansible.builtin.command: nginx -t
       register: nginx_test
@@ -141,6 +149,15 @@
       ansible.builtin.service:
         name: nginx
         state: restarted
+
+
+
+
+
+
+
+
+
 
 ##########################################
 # EXPLANATION OF PLAYBOOK

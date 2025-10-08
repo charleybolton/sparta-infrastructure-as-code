@@ -6,7 +6,6 @@
   - [3️⃣ Fixing MongoDB Downgrade Error During Ansible Install](#3️⃣-fixing-mongodb-downgrade-error-during-ansible-install)
   - [4️⃣ Fixing Missing `DB_HOST` Environment Variable in PM2](#4️⃣-fixing-missing-db_host-environment-variable-in-pm2)
   - [5️⃣ Fixing Missing Post Content (Unseeded MongoDB)](#5️⃣-fixing-missing-post-content-unseeded-mongodb)
-  - [6️⃣ Cleaning Up Exports with Ansible Environment Variables](#6️⃣-cleaning-up-exports-with-ansible-environment-variables)
 
 ## 1️⃣ Fixing EC2 / Security Group VPC Mismatch
 
@@ -239,41 +238,3 @@ After redeploying, the “Posts” page now displays seeded posts instead of jus
 ✅ **Result**
 - MongoDB is automatically populated during deployment.  
 - The app displays full post content on page load.
-
-## 6️⃣ Cleaning Up Exports with Ansible Environment Variables
-
-**Observation**
-Originally, both the PM2 and seed tasks exported the `DB_HOST` variable manually using `export DB_HOST=...` in each shell block.
-
-**Diagnosis**
-- Each `shell` task runs in its own environment, so exports don’t persist between tasks.  
-- Repeating `export` is functional but verbose and not best practice.
-
-**Fix**
-Refactored both tasks to use the `environment:` key instead of inline exports:
-
-```yaml
-- name: start app with PM2 using DB_HOST environment variable
-  ansible.builtin.shell: pm2 start app.js --name app -f --update-env
-  args:
-    chdir: /home/ubuntu/repo/app
-  environment:
-    DB_HOST: "mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
-  become: false
-
-- name: seed MongoDB using app's seed script
-  ansible.builtin.shell: node seeds/seed.js
-  args:
-    chdir: /home/ubuntu/repo/app
-  environment:
-    DB_HOST: "mongodb://{{ hostvars[groups['db'][0]].ansible_host }}:27017/posts"
-  become: false
-```
-
-**Verification**
-- Both tasks successfully connect to the MongoDB instance.  
-- The playbook is cleaner, more readable, and aligns with Ansible best practices.
-
-✅ **Result**
-- Environment variables are handled properly without redundant exports.  
-- Deployment remains fully automated and idempotent.
