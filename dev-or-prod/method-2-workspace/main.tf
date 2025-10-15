@@ -20,7 +20,7 @@ resource "aws_instance" "app_instance" {
   vpc_security_group_ids = [aws_security_group.allow_22_3000_80.id]
 
   tags = {
-    Name = "${var.app_name}-${terraform.workspace}"
+    Name = "${var.app_name}-${terraform.workspace}-${count.index + 1}"
   }
 }
 

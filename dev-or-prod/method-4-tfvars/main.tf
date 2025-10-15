@@ -7,9 +7,10 @@ provider "aws" {
   region = var.aws_region
 }
 
+
 resource "aws_instance" "app_instance" {
 
-  count = var.environment == "dev" ? 1 : 2
+  count = var.instance_count  # read from .tfvars file
 
   ami = var.default_ami
 

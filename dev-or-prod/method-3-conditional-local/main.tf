@@ -13,6 +13,8 @@ locals {
 
 resource "aws_instance" "app_instance" {
 
+  count = local.instance_count
+
   ami = var.default_ami
 
   instance_type = var.instance_type
@@ -22,7 +24,7 @@ resource "aws_instance" "app_instance" {
   vpc_security_group_ids = [aws_security_group.allow_22_3000_80.id]
 
   tags = {
-    Name = "${var.app_name}-${var.environment}"
+    Name = "${var.app_name}-${var.environment}-${count.index + 1}"
   }
 }
 
